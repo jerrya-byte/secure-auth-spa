@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecureAuth — Identity Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* ─── Variables ─── */
+    :root {
+      --bg:           #08070f;
+      --bg2:          #0f0d1a;
+      --bg3:          #171426;
+      --bg4:          #1e1a34;
+      --border:       rgba(120, 90, 220, 0.18);
+      --border-hover: rgba(160, 120, 255, 0.4);
+      --purple:       #7c5ce0;
+      --purple-light: #a78bfa;
+      --purple-glow:  rgba(124, 92, 224, 0.3);
+      --accent:       #b06aff;
+      --green:        #34d399;
+      --red:          #f87171;
+      --yellow:       #fbbf24;
+      --text:         #e2dff5;
+      --text-muted:   #7a708e;
+      --text-dim:     #4a4460;
+      --focus:        #c4b5fd;
+      --radius:       6px;
+      --radius-lg:    12px;
+      --mono:         'IBM Plex Mono', monospace;
+      --sans:         'Syne', sans-serif;
+    }
+
+    /* ─── Reset ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* ─── Skip link ─── */
+    .skip-link {
+      position: fixed; top: -100px; left: 1rem; z-index: 9999;
+      background: var(--focus); color: #000;
+      padding: 0.6rem 1.2rem; border-radius: var(--radius);
+      font-size: 0.8rem; text-decoration: none; font-family: var(--mono);
+      transition: top 0.2s;
+    }
+    .skip-link:focus { top: 1rem; }
+
+    /* ─── Focus ─── */
+    :focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 3px;
+      border-radius: var(--radius);
+    }
+    :focus:not(:focus-visible) { outline: none; }
+
+    /* ─── Background grid ─── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(124,92,224,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,92,224,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* Ambient glow */
+    body::after {
+      content: '';
+      position: fixed;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(124,92,224,0.12) 0%, transparent 70%);
+      top: -200px; right: -100px;
+      z-index: 0; pointer-events: none;
+    }
+
+    /* ─── Layout shell ─── */
+    .shell {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─── Top bar ─── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.1rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(8,7,15,0.8);
+      backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 50;
+    }
+    .topbar-brand {
+      display: flex; align-items: center; gap: 0.6rem;
+      font-family: var(--sans); font-size: 1rem; font-weight: 700;
+      color: var(--text); letter-spacing: 0.02em;
+      text-decoration: none;
+    }
+    .brand-icon {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, var(--purple), var(--accent));
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; color: #fff;
+    }
+    .topbar-right { display: flex; align-items: center; gap: 1rem; }
+
+    /* Step indicator */
+    .step-indicator {
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .step-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--border);
+      transition: all 0.3s;
+      border: 1px solid var(--border);
+    }
+    .step-dot.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .step-dot.done   { background: var(--green);  border-color: var(--green); }
+
+    .hc-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.35rem 0.8rem;
+      font-family: var(--mono); font-size: 0.65rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      cursor: pointer; border-radius: var(--radius);
+      transition: all 0.2s;
+    }
+    .hc-btn:hover { border-color: var(--purple-light); color: var(--purple-light); }
+    .hc-btn[aria-pressed="true"] { background: var(--purple); color: #fff; border-color: var(--purple); }
+
+    /* ─── Main content ─── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1.5rem 4rem;
+    }
+
+    /* ─── Setup Guide ─── */
+    .setup-guide {
+      width: 100%; max-width: 860px;
+      margin-bottom: 2rem;
+      border: 1px solid var(--yellow);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: rgba(251,191,36,0.04);
+    }
+    .setup-toggle {
+      width: 100%;
+      background: transparent;
+      border: none;
+      padding: 1rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; color: var(--yellow);
+      font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .setup-toggle:hover { background: rgba(251,191,36,0.06); }
+    .setup-toggle .chevron { transition: transform 0.3s; font-style: normal; }
+    .setup-toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+
+    .setup-body {
+      display: none;
+      padding: 0 1.5rem 1.5rem;
+      border-top: 1px solid rgba(251,191,36,0.15);
+    }
+    .setup-body.open { display: block; }
+
+    .setup-step {
+      margin-top: 1.2rem;
+    }
+    .setup-step h3 {
+      font-family: var(--sans); font-size: 0.85rem; font-weight: 600;
+      color: var(--yellow); margin-bottom: 0.5rem;
+    }
+    .setup-step p {
+      font-size: 0.72rem; color: var(--text-muted); line-height: 1.8; margin-bottom: 0.5rem;
+    }
+    .setup-step a { color: var(--purple-light); }
+    .code-block {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.2rem;
+      font-size: 0.68rem;
+      color: var(--green);
+      line-height: 1.7;
+      white-space: pre;
+      overflow-x: auto;
+      position: relative;
+    }
+    .copy-btn {
+      position: absolute; top: 0.5rem; right: 0.5rem;
+      background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text-muted); font-family: var(--mono);
+      font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 0.25rem 0.6rem; border-radius: 4px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover { border-color: var(--green); color: var(--green); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+    /* ─── Config Panel ─── */
+    .config-panel {
+      width: 100%; max-width: 860px;
+      margin-bottom: 2rem;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem 1.5rem;
+    }
+    .config-panel h2 {
+      font-family: var(--sans); font-size: 0.8rem; font-weight: 600;
+      color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase;
+      margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .config-panel h2::before {
+      content: '⚙'; font-size: 0.9rem;
+    }
+    .config-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;
+    }
+    .config-field label {
+      display: block; font-size: 0.62rem; letter-spacing: 0.15em;
+      text-transform: uppercase; color: var(--purple-light); margin-bottom: 0.35rem;
+    }
+    .config-field input {
+      width: 100%; background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text); padding: 0.65rem 0.9rem;
+      font-family: var(--mono); font-size: 0.72rem;
+      border-radius: var(--radius);
+      transition: border-color 0.2s;
+    }
+    .config-field input:focus { outline: none; border-color: var(--purple); }
+    .config-field input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .config-field input::placeholder { color: var(--text-dim); }
+
+    .config-status {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.68rem; margin-top: 0.5rem;
+    }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.disconnected { background: var(--red); }
+    .status-dot.idle { background: var(--text-dim); }
+
+    /* ─── Card ─── */
+    .card {
+      width: 100%; max-width: 500px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      animation: cardIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .card-header {
+      padding: 1.5rem 2rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    .card-header::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--purple), var(--accent));
+    }
+    .card-eyebrow {
+      font-size: 0.6rem; letter-spacing: 0.25em;
+      text-transform: uppercase; color: var(--accent);
+      margin-bottom: 0.4rem;
+    }
+    .card-title {
+      font-family: var(--sans); font-size: 1.35rem; font-weight: 700;
+      color: var(--text); line-height: 1.2;
+    }
+    .card-subtitle {
+      font-size: 0.72rem; color: var(--text-muted);
+      margin-top: 0.35rem; line-height: 1.7;
+    }
+    .card-body { padding: 1.75rem 2rem; }
+
+    /* ─── Form Elements ─── */
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+    .form-group label {
+      display: block; font-size: 0.62rem;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--purple-light); margin-bottom: 0.4rem;
+    }
+    .input-wrap {
+      position: relative;
+    }
+    .input-wrap .input-icon {
+      position: absolute; left: 0.9rem; top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim); font-size: 0.85rem;
+      pointer-events: none; transition: color 0.2s;
+    }
+    .input-wrap input:focus ~ .input-icon,
+    .input-wrap input:not(:placeholder-shown) ~ .input-icon {
+      color: var(--purple-light);
+    }
+    .form-input {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.8rem 1rem 0.8rem 2.6rem;
+      font-family: var(--mono); font-size: 0.82rem;
+      border-radius: var(--radius);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: var(--purple);
+      box-shadow: 0 0 0 3px var(--purple-glow);
+    }
+    .form-input:focus-visible {
+      outline: 2px solid var(--focus); outline-offset: 2px;
+    }
+    .form-input::placeholder { color: var(--text-dim); }
+    .form-input[readonly] {
+      background: var(--bg2); color: var(--text-muted);
+      border-color: var(--border); cursor: default;
+    }
+
+    .field-error {
+      display: none;
+      margin-top: 0.4rem;
+      font-size: 0.67rem;
+      color: var(--red);
+      align-items: center; gap: 0.4rem;
+    }
+    .field-error.show { display: flex; }
+
+    /* ─── Buttons ─── */
+    .btn {
+      width: 100%;
+      padding: 0.9rem 1.5rem;
+      font-family: var(--mono); font-size: 0.75rem;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      border: none; border-radius: var(--radius);
+      cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+      position: relative; overflow: hidden;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--purple), var(--accent));
+      color: #fff;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px var(--purple-glow);
+    }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled {
+      opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none;
+    }
+    .btn-ghost {
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--purple-light); color: var(--purple-light); }
+
+    /* Spinner */
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .btn.loading .spinner { display: block; }
+    .btn.loading .btn-label { opacity: 0.6; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Alert ─── */
+    .alert {
+      display: none; margin-bottom: 1rem;
+      padding: 0.8rem 1rem;
+      border-radius: var(--radius);
+      font-size: 0.72rem; line-height: 1.6;
+      align-items: flex-start; gap: 0.6rem;
+    }
+    .alert.show { display: flex; }
+    .alert-error {
+      background: rgba(248,113,113,0.1);
+      border: 1px solid rgba(248,113,113,0.3);
+      color: var(--red);
+    }
+    .alert-info {
+      background: rgba(124,92,224,0.1);
+      border: 1px solid var(--border);
+      color: var(--purple-light);
+    }
+    .alert-icon { font-style: normal; flex-shrink: 0; }
+
+    /* ─── Token Display (wide card) ─── */
+    .token-card {
+      width: 100%; max-width: 960px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      animation: cardIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    .token-card-header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      position: relative; overflow: hidden;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .token-card-header::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--green), var(--purple), var(--accent));
+    }
+    .token-success-badge {
+      display: flex; align-items: center; gap: 0.5rem;
+      background: rgba(52,211,153,0.12);
+      border: 1px solid rgba(52,211,153,0.3);
+      color: var(--green);
+      padding: 0.35rem 0.85rem;
+      border-radius: 20px; font-size: 0.68rem; letter-spacing: 0.1em;
+    }
+    .pulse-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      animation: pulse-anim 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-anim {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .token-panels {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+    .token-panel {
+      padding: 1.75rem 2rem;
+    }
+    .token-panel:first-child {
+      border-right: 1px solid var(--border);
+    }
+    .panel-label {
+      font-size: 0.6rem; letter-spacing: 0.25em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 1rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .panel-label::before {
+      content: '';
+      width: 16px; height: 1px; background: currentColor;
+    }
+
+    /* Raw JWT */
+    .jwt-raw {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      font-size: 0.66rem;
+      line-height: 1.8;
+      word-break: break-all;
+      color: var(--text-muted);
+      max-height: 260px; overflow-y: auto;
+      position: relative;
+    }
+    .jwt-raw .part-header { color: var(--yellow); }
+    .jwt-raw .part-sep    { color: var(--text-dim); }
+    .jwt-raw .part-payload{ color: var(--purple-light); }
+    .jwt-raw .part-sig    { color: var(--green); }
+
+    /* Decoded claims */
+    .claims-list {
+      display: flex; flex-direction: column; gap: 0.6rem;
+    }
+    .claim-row {
+      display: grid; grid-template-columns: 160px 1fr;
+      gap: 0.75rem; align-items: start;
+      padding: 0.7rem 0.9rem;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.2s;
+    }
+    .claim-row:hover { border-color: var(--purple); }
+    .claim-key {
+      font-size: 0.62rem; letter-spacing: 0.1em;
+      color: var(--accent); text-transform: uppercase;
+      padding-top: 0.05rem;
+    }
+    .claim-value {
+      font-size: 0.72rem; color: var(--text);
+      word-break: break-all; line-height: 1.5;
+    }
+    .claim-value.success-val { color: var(--green); font-weight: 500; }
+    .claim-value.muted       { color: var(--text-muted); }
+
+    .token-footer {
+      padding: 1.25rem 2rem;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 0.75rem;
+    }
+    .token-footer-note {
+      font-size: 0.65rem; color: var(--text-muted);
+    }
+
+    /* ─── Hidden / Visible ─── */
+    .screen { display: none; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; width: 100%; }
+
+    /* ─── High Contrast ─── */
+    body.hc {
+      --bg:           #000;
+      --bg2:          #0a0a0a;
+      --bg3:          #111;
+      --bg4:          #1a1a1a;
+      --border:       rgba(200,170,255,0.4);
+      --border-hover: rgba(200,170,255,0.7);
+      --purple:       #b090ff;
+      --purple-light: #d0b8ff;
+      --accent:       #e0c0ff;
+      --green:        #00ff88;
+      --red:          #ff6060;
+      --yellow:       #ffdd00;
+      --text:         #ffffff;
+      --text-muted:   #cccccc;
+      --text-dim:     #888888;
+      --focus:        #ffff00;
+    }
+
+    /* ─── Scrollbar ─── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--purple); }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 700px) {
+      .config-row { grid-template-columns: 1fr; }
+      .token-panels { grid-template-columns: 1fr; }
+      .token-panel:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+      .claim-row { grid-template-columns: 120px 1fr; }
+      .card-body, .card-header { padding: 1.25rem 1.25rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <div class="shell">
+
+    <!-- ─── Top Bar ─── -->
+    <header role="banner">
+      <nav class="topbar" aria-label="Application navigation">
+        <a href="#" class="topbar-brand" aria-label="SecureAuth Identity Portal">
+          <span class="brand-icon" aria-hidden="true">✦</span>
+          SecureAuth
+        </a>
+        <div class="topbar-right">
+          <div class="step-indicator" role="progressbar" aria-valuemin="1" aria-valuemax="3" aria-valuenow="1" aria-label="Step 1 of 3: Email check" id="stepProgress">
+            <span class="step-dot active" id="dot1" aria-hidden="true" title="Step 1: Email Check"></span>
+            <span class="step-dot" id="dot2" aria-hidden="true" title="Step 2: Login"></span>
+            <span class="step-dot" id="dot3" aria-hidden="true" title="Step 3: Token"></span>
+          </div>
+          <button class="hc-btn" id="hcBtn" aria-pressed="false" aria-label="Toggle high contrast mode">
+            High Contrast
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <!-- ─── Main ─── -->
+    <main id="main">
+
+      <!-- ══ SETUP GUIDE ══ -->
+      <div class="setup-guide" role="region" aria-label="Setup guide">
+        <button class="setup-toggle" id="setupToggle" aria-expanded="true" aria-controls="setupBody">
+          <span>⚠ &nbsp; Setup Required — Supabase Configuration Guide</span>
+          <em class="chevron" aria-hidden="true">▲</em>
+        </button>
+        <div class="setup-body open" id="setupBody">
+
+          <div class="setup-step">
+            <h3>Step 1 — Create a Supabase Project</h3>
+            <p>Go to <a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a> → Sign up free → New Project. Choose any name, region, and a strong DB password. Wait ~2 min for provisioning.</p>
+          </div>
+
+          <div class="setup-step">
+            <h3>Step 2 — Database A: Create the email_registry table</h3>
+            <p>In your Supabase dashboard, go to <strong>SQL Editor</strong> and run this script:</p>
+            <div class="code-block" id="sqlA">
+-- DATABASE A: Email Registry
+CREATE TABLE IF NOT EXISTS public.email_registry (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Allow unauthenticated reads (email existence check)
+ALTER TABLE public.email_registry ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public_email_check" ON public.email_registry
+  FOR SELECT USING (true);
+
+-- Sample registered emails (matching the Auth users below)
+INSERT INTO public.email_registry (email) VALUES
+  ('john.doe@secureauth.dev'),
+  ('jane.smith@secureauth.dev')
+ON CONFLICT DO NOTHING;
+<button class="copy-btn" onclick="copyCode('sqlA', this)" aria-label="Copy SQL for Database A">Copy</button></div>
+          </div>
+
+          <div class="setup-step">
+            <h3>Step 3 — Database B: Create Auth users (the Identity Provider)</h3>
+            <p>Go to <strong>Authentication → Users → Add User</strong> and create these two users with their metadata:</p>
+            <p>In the SQL Editor, also run this to attach first/last name metadata:</p>
+            <div class="code-block" id="sqlB">
+-- DATABASE B: Set up user metadata (run AFTER creating Auth users)
+-- First create users in: Dashboard → Authentication → Users → Add User
+-- Email: john.doe@secureauth.dev | Password: SecurePass1!
+-- Email: jane.smith@secureauth.dev | Password: SecurePass2!
+
+-- Then run this to add firstname/lastname to their tokens:
+UPDATE auth.users
+SET raw_user_meta_data = raw_user_meta_data || '{"first_name": "John", "last_name": "Doe"}'::jsonb
+WHERE email = 'john.doe@secureauth.dev';
+
+UPDATE auth.users
+SET raw_user_meta_data = raw_user_meta_data || '{"first_name": "Jane", "last_name": "Smith"}'::jsonb
+WHERE email = 'jane.smith@secureauth.dev';
+<button class="copy-btn" onclick="copyCode('sqlB', this)" aria-label="Copy SQL for Database B">Copy</button></div>
+          </div>
+
+          <div class="setup-step">
+            <h3>Step 4 — Get your API credentials</h3>
+            <p>Go to <strong>Project Settings → API</strong>. Copy your <strong>Project URL</strong> and <strong>anon / public</strong> key. Paste them into the config panel below.</p>
+          </div>
+
+          <div class="setup-step">
+            <h3>Sample Credentials to Test With</h3>
+            <div class="code-block">
+Email:    john.doe@secureauth.dev   |  Password: SecurePass1!
+Email:    jane.smith@secureauth.dev  |  Password: SecurePass2!
+</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══ CONFIG PANEL ══ -->
+      <div class="config-panel" role="region" aria-label="Supabase configuration">
+        <h2>Supabase Configuration</h2>
+        <div class="config-row">
+          <div class="config-field">
+            <label for="cfgUrl">Project URL</label>
+            <input type="url" id="cfgUrl" placeholder="https://xxxxxxxxxxxx.supabase.co"
+              aria-label="Supabase project URL" autocomplete="off" />
+          </div>
+          <div class="config-field">
+            <label for="cfgKey">Anon Public Key</label>
+            <input type="text" id="cfgKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              aria-label="Supabase anonymous public key" autocomplete="off" />
+          </div>
+        </div>
+        <div class="config-status" aria-live="polite" aria-atomic="true">
+          <span class="status-dot idle" id="cfgDot"></span>
+          <span id="cfgStatusText" style="font-size:0.68rem; color:var(--text-muted)">Enter your Supabase URL and anon key to connect</span>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════
+           SCREEN 1 — Email Check
+      ══════════════════════════════════════════ -->
+      <div class="screen active" id="screen1" role="region" aria-label="Email verification">
+        <div class="card">
+          <div class="card-header">
+            <p class="card-eyebrow">Step 1 of 3</p>
+            <h1 class="card-title">Enter your email</h1>
+            <p class="card-subtitle">We'll check if your email is registered in our system before proceeding.</p>
+          </div>
+          <div class="card-body">
+
+            <div class="alert alert-error" id="emailAlert" role="alert" aria-live="assertive">
+              <em class="alert-icon">✕</em>
+              <span id="emailAlertMsg"></span>
+            </div>
+
+            <form id="emailForm" novalidate aria-label="Email check form">
+              <div class="form-group">
+                <label for="emailInput">Email Address</label>
+                <div class="input-wrap">
+                  <input
+                    type="email" id="emailInput" name="email"
+                    class="form-input"
+                    placeholder="you@example.com"
+                    autocomplete="email" required aria-required="true"
+                    aria-describedby="emailFieldError"
+                  />
+                  <span class="input-icon" aria-hidden="true">@</span>
+                </div>
+                <p class="field-error" id="emailFieldError" role="alert">
+                  <span aria-hidden="true">✕</span>
+                  <span id="emailFieldErrorMsg">Please enter a valid email address.</span>
+                </p>
+              </div>
+
+              <button type="submit" class="btn btn-primary" id="emailBtn" aria-label="Check email registration">
+                <span class="spinner" aria-hidden="true"></span>
+                <span class="btn-label">Check Email</span>
+              </button>
+            </form>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════
+           SCREEN 2 — Login
+      ══════════════════════════════════════════ -->
+      <div class="screen" id="screen2" role="region" aria-label="Login">
+        <div class="card">
+          <div class="card-header">
+            <p class="card-eyebrow">Step 2 of 3</p>
+            <h1 class="card-title">Sign in</h1>
+            <p class="card-subtitle">Email verified. Enter your password to authenticate.</p>
+          </div>
+          <div class="card-body">
+
+            <div class="alert alert-info show" id="loginEmailBadge" role="status" aria-live="polite">
+              <em class="alert-icon">✓</em>
+              <span>Signing in as: <strong id="loginEmailDisplay"></strong></span>
+            </div>
+
+            <div class="alert alert-error" id="loginAlert" role="alert" aria-live="assertive">
+              <em class="alert-icon">✕</em>
+              <span id="loginAlertMsg"></span>
+            </div>
+
+            <form id="loginForm" novalidate aria-label="Login form">
+              <div class="form-group">
+                <label for="loginEmail">Email Address</label>
+                <div class="input-wrap">
+                  <input
+                    type="email" id="loginEmail" name="email"
+                    class="form-input" readonly
+                    aria-label="Email address (pre-filled)"
+                    aria-describedby="loginEmailNote"
+                  />
+                  <span class="input-icon" aria-hidden="true">@</span>
+                </div>
+                <p id="loginEmailNote" style="font-size:0.65rem; color:var(--text-muted); margin-top:0.3rem;">Pre-filled from the previous step.</p>
+              </div>
+
+              <div class="form-group">
+                <label for="loginPassword">Password</label>
+                <div class="input-wrap">
+                  <input
+                    type="password" id="loginPassword" name="password"
+                    class="form-input"
+                    placeholder="••••••••"
+                    autocomplete="current-password" required aria-required="true"
+                    aria-describedby="loginPasswordError"
+                  />
+                  <span class="input-icon" aria-hidden="true">⚿</span>
+                </div>
+                <p class="field-error" id="loginPasswordError" role="alert">
+                  <span aria-hidden="true">✕</span> Password is required.
+                </p>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                <button type="submit" class="btn btn-primary" id="loginBtn" aria-label="Sign in with password">
+                  <span class="spinner" aria-hidden="true"></span>
+                  <span class="btn-label">Sign In</span>
+                </button>
+                <button type="button" class="btn btn-ghost" id="backBtn" aria-label="Go back to email entry">
+                  ← Back
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════
+           SCREEN 3 — Token Display
+      ══════════════════════════════════════════ -->
+      <div class="screen" id="screen3" role="region" aria-label="Authentication token">
+        <div class="token-card">
+          <div class="token-card-header">
+            <div>
+              <p class="card-eyebrow" style="margin-bottom:0.3rem;">Step 3 of 3</p>
+              <h1 class="card-title" style="font-size:1.2rem;">ID Token Received</h1>
+            </div>
+            <div class="token-success-badge" role="status" aria-label="Authentication successful">
+              <span class="pulse-dot" aria-hidden="true"></span>
+              Authenticated
+            </div>
+          </div>
+
+          <div class="token-panels">
+            <!-- Left: Raw JWT -->
+            <div class="token-panel">
+              <p class="panel-label">Raw JWT Token</p>
+              <div class="jwt-raw" id="jwtRaw" tabindex="0" role="region" aria-label="Raw JWT token string">
+                <span class="part-header" id="jwtHeader"></span><span class="part-sep">.</span><span class="part-payload" id="jwtPayload"></span><span class="part-sep">.</span><span class="part-sig" id="jwtSig"></span>
+              </div>
+              <p style="margin-top:0.6rem; font-size:0.62rem; color:var(--text-dim); line-height:1.6;">
+                <span style="color:var(--yellow)">■</span> Header &nbsp;
+                <span style="color:var(--purple-light)">■</span> Payload &nbsp;
+                <span style="color:var(--green)">■</span> Signature
+              </p>
+            </div>
+
+            <!-- Right: Decoded Claims -->
+            <div class="token-panel">
+              <p class="panel-label">Decoded Claims</p>
+              <dl class="claims-list" id="claimsList" aria-label="Decoded token claims">
+                <!-- populated by JS -->
+              </dl>
+            </div>
+          </div>
+
+          <div class="token-footer">
+            <p class="token-footer-note" aria-label="Token note">
+              ⚠ ID tokens are sensitive — never expose them publicly or store in localStorage.
+            </p>
+            <button class="btn btn-ghost" id="signOutBtn" style="width:auto; padding:0.55rem 1.25rem; font-size:0.68rem;"
+              aria-label="Sign out and start over">
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+  /* ════════════════════════════════════════════
+     App State
+  ════════════════════════════════════════════ */
+  let supabaseClient = null;
+  let verifiedEmail  = '';
+
+  /* ════════════════════════════════════════════
+     Utilities
+  ════════════════════════════════════════════ */
+  function $(id) { return document.getElementById(id); }
+
+  function showScreen(n) {
+    ['screen1','screen2','screen3'].forEach((id, i) => {
+      const el = $(id);
+      el.classList.toggle('active', i + 1 === n);
+      if (i + 1 === n) {
+        // Focus the card header for screen readers
+        const heading = el.querySelector('h1');
+        if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus(); }
+      }
+    });
+    updateStepDots(n);
+  }
+
+  function updateStepDots(n) {
+    for (let i = 1; i <= 3; i++) {
+      const dot = $(`dot${i}`);
+      dot.classList.remove('active','done');
+      if (i < n) dot.classList.add('done');
+      if (i === n) dot.classList.add('active');
+    }
+    const prog = $('stepProgress');
+    prog.setAttribute('aria-valuenow', n);
+    const labels = ['Email Check','Login','Token Display'];
+    prog.setAttribute('aria-label', `Step ${n} of 3: ${labels[n-1]}`);
+  }
+
+  function setLoading(btn, loading) {
+    btn.classList.toggle('loading', loading);
+    btn.disabled = loading;
+  }
+
+  function showAlert(alertEl, msgEl, message, show = true) {
+    alertEl.classList.toggle('show', show);
+    if (msgEl) msgEl.textContent = message;
+  }
+
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  /* ════════════════════════════════════════════
+     Supabase Config
+  ════════════════════════════════════════════ */
+  function initSupabase(url, key) {
+    if (!url || !key) return false;
+    try {
+      supabaseClient = supabase.createClient(url.trim(), key.trim());
+      return true;
+    } catch(e) { return false; }
+  }
+
+  function updateConfigStatus(state, msg) {
+    const dot = $('cfgDot');
+    const txt = $('cfgStatusText');
+    dot.className = 'status-dot ' + state;
+    txt.textContent = msg;
+    txt.style.color = state === 'connected'
+      ? 'var(--green)' : state === 'disconnected'
+      ? 'var(--red)' : 'var(--text-muted)';
+  }
+
+  let configDebounce;
+  function onConfigChange() {
+    clearTimeout(configDebounce);
+    configDebounce = setTimeout(() => {
+      const url = $('cfgUrl').value.trim();
+      const key = $('cfgKey').value.trim();
+      if (!url || !key) {
+        updateConfigStatus('idle', 'Enter your Supabase URL and anon key to connect');
+        supabaseClient = null; return;
+      }
+      if (initSupabase(url, key)) {
+        updateConfigStatus('connected', '✓ Client initialized — ready to authenticate');
+      } else {
+        updateConfigStatus('disconnected', '✕ Invalid credentials format');
+      }
+    }, 600);
+  }
+
+  $('cfgUrl').addEventListener('input', onConfigChange);
+  $('cfgKey').addEventListener('input', onConfigChange);
+
+  /* ════════════════════════════════════════════
+     Setup Guide Toggle
+  ════════════════════════════════════════════ */
+  $('setupToggle').addEventListener('click', function() {
+    const body    = $('setupBody');
+    const open    = body.classList.toggle('open');
+    this.setAttribute('aria-expanded', String(open));
+    this.querySelector('.chevron').textContent = open ? '▲' : '▼';
+  });
+
+  /* ════════════════════════════════════════════
+     Copy Code Helper
+  ════════════════════════════════════════════ */
+  function copyCode(blockId, btn) {
+    const block = $(blockId);
+    // get text without the button element
+    const text = block.childNodes[0] ? block.childNodes[0].textContent : block.textContent;
+    // Actually grab all text content except the button
+    const clone = block.cloneNode(true);
+    clone.querySelectorAll('button').forEach(b => b.remove());
+    navigator.clipboard.writeText(clone.textContent.trim()).then(() => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
+  /* ════════════════════════════════════════════
+     High Contrast
+  ════════════════════════════════════════════ */
+  $('hcBtn').addEventListener('click', function() {
+    const on = document.body.classList.toggle('hc');
+    this.setAttribute('aria-pressed', String(on));
+  });
+
+  /* ════════════════════════════════════════════
+     SCREEN 1 — Email Check
+  ════════════════════════════════════════════ */
+  $('emailForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    // Clear previous errors
+    showAlert($('emailAlert'), $('emailAlertMsg'), '', false);
+    $('emailFieldError').classList.remove('show');
+
+    const email = $('emailInput').value.trim();
+
+    // Validate format
+    if (!isValidEmail(email)) {
+      $('emailFieldError').classList.add('show');
+      $('emailInput').focus();
+      return;
+    }
+
+    // Check Supabase is configured
+    if (!supabaseClient) {
+      showAlert($('emailAlert'), $('emailAlertMsg'),
+        'Please configure your Supabase credentials above before proceeding.');
+      return;
+    }
+
+    const btn = $('emailBtn');
+    setLoading(btn, true);
+
+    try {
+      // Query Database A — email_registry table
+      const { data, error } = await supabaseClient
+        .from('email_registry')
+        .select('email')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        // Email not found
+        showAlert($('emailAlert'), $('emailAlertMsg'),
+          `This email address is not registered in our system. Please check for typos or contact your administrator.`);
+      } else {
+        // Email found — proceed to login
+        verifiedEmail = email;
+        $('loginEmail').value = email;
+        $('loginEmailDisplay').textContent = email;
+        $('loginPassword').value = '';
+        showAlert($('loginAlert'), $('loginAlertMsg'), '', false);
+        showScreen(2);
+        setTimeout(() => $('loginPassword').focus(), 100);
+      }
+    } catch (err) {
+      showAlert($('emailAlert'), $('emailAlertMsg'),
+        `Database error: ${err.message || 'Could not connect to email registry. Please check your Supabase configuration.'}`);
+    } finally {
+      setLoading(btn, false);
+    }
+  });
+
+  /* ════════════════════════════════════════════
+     SCREEN 2 — Login
+  ════════════════════════════════════════════ */
+  $('backBtn').addEventListener('click', () => {
+    showAlert($('loginAlert'), $('loginAlertMsg'), '', false);
+    showScreen(1);
+    $('emailInput').focus();
+  });
+
+  $('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    // Clear errors
+    showAlert($('loginAlert'), $('loginAlertMsg'), '', false);
+    $('loginPasswordError').classList.remove('show');
+
+    const password = $('loginPassword').value;
+    if (!password) {
+      $('loginPasswordError').classList.add('show');
+      $('loginPassword').focus();
+      return;
+    }
+
+    const btn = $('loginBtn');
+    setLoading(btn, true);
+
+    try {
+      // Database B — authenticate via Supabase Auth (Identity Provider)
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: verifiedEmail,
+        password: password
+      });
+
+      if (error) throw error;
+
+      // Authentication successful — decode and display token
+      const session = data.session;
+      const user    = data.user;
+      displayToken(session.access_token, user, session);
+      showScreen(3);
+
+    } catch (err) {
+      const msg = err.message || 'Authentication failed';
+      showAlert($('loginAlert'), $('loginAlertMsg'),
+        msg.includes('Invalid login') ? 'Incorrect password. Please try again.' : `Authentication error: ${msg}`);
+    } finally {
+      setLoading(btn, false);
+    }
+  });
+
+  /* ════════════════════════════════════════════
+     SCREEN 3 — Token Display
+  ════════════════════════════════════════════ */
+  function decodeJWT(token) {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    try {
+      const decodeB64 = (str) => {
+        const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = b64 + '=='.slice(0, (4 - b64.length % 4) % 4);
+        return JSON.parse(atob(padded));
+      };
+      return {
+        header:    decodeB64(parts[0]),
+        payload:   decodeB64(parts[1]),
+        signature: parts[2],
+        raw: { header: parts[0], payload: parts[1], sig: parts[2] }
+      };
+    } catch(e) { return null; }
+  }
+
+  function formatTime(unix) {
+    if (!unix) return 'N/A';
+    return new Date(unix * 1000).toLocaleString(undefined, {
+      year:'numeric', month:'short', day:'numeric',
+      hour:'2-digit', minute:'2-digit', second:'2-digit',
+      timeZoneName:'short'
+    });
+  }
+
+  function displayToken(accessToken, user, session) {
+    const decoded = decodeJWT(accessToken);
+    if (!decoded) return;
+
+    const p = decoded.payload;
+    const meta = user.user_metadata || {};
+
+    // ── Raw JWT (colour-coded) ──
+    $('jwtHeader').textContent  = decoded.raw.header;
+    $('jwtPayload').textContent = decoded.raw.payload;
+    $('jwtSig').textContent     = decoded.raw.sig;
+
+    // ── Decoded Claims ──
+    const claims = [
+      { key: 'Auth Result',       value: 'SUCCESS',            cls: 'success-val' },
+      { key: 'First Name',        value: meta.first_name || 'N/A' },
+      { key: 'Last Name',         value: meta.last_name  || 'N/A' },
+      { key: 'Email',             value: p.email || user.email || 'N/A' },
+      { key: 'Audience (aud)',    value: Array.isArray(p.aud) ? p.aud.join(', ') : (p.aud || 'N/A') },
+      { key: 'Issuer (iss)',      value: p.iss  || 'N/A', cls: 'muted' },
+      { key: 'Subject (sub)',     value: p.sub  || user.id || 'N/A', cls: 'muted' },
+      { key: 'Role',              value: p.role || 'N/A' },
+      { key: 'Issued At (iat)',   value: formatTime(p.iat) },
+      { key: 'Expires At (exp)',  value: formatTime(p.exp) },
+    ];
+
+    const list = $('claimsList');
+    list.innerHTML = '';
+    claims.forEach(({ key, value, cls }) => {
+      const row = document.createElement('div');
+      row.className = 'claim-row';
+      row.innerHTML = `
+        <dt class="claim-key">${escHtml(key)}</dt>
+        <dd class="claim-value ${cls || ''}">${escHtml(String(value))}</dd>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* ════════════════════════════════════════════
+     Sign Out
+  ════════════════════════════════════════════ */
+  $('signOutBtn').addEventListener('click', async () => {
+    if (supabaseClient) {
+      await supabaseClient.auth.signOut().catch(() => {});
+    }
+    verifiedEmail = '';
+    $('emailInput').value = '';
+    $('loginPassword').value = '';
+    showAlert($('emailAlert'), $('emailAlertMsg'), '', false);
+    showScreen(1);
+    $('emailInput').focus();
+  });
+
+  /* ════════════════════════════════════════════
+     Keyboard: Escape to go back
+  ════════════════════════════════════════════ */
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('screen2').classList.contains('active')) {
+      $('backBtn').click();
+    }
+  });
+
+  /* ════════════════════════════════════════════
+     Init
+  ════════════════════════════════════════════ */
+  showScreen(1);
+  $('emailInput').focus();
+  </script>
+</body>
+</html>
