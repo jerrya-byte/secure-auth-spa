@@ -438,23 +438,26 @@
           <!-- ENTRA TAB -->
           <div class="guide-panel active" id="guideEntra" role="tabpanel" aria-labelledby="tabEntra">
 
+            <div class="info-box" style="margin-top:1rem;">
+              🔒 <strong>Why a Worker proxy?</strong> Microsoft's token endpoint blocks direct browser calls (CORS policy) as a security measure — client secrets must never be exposed in browser code. The Cloudflare Worker runs server-side, holds your secrets safely as environment variables, and returns only the result to your SPA.
+            </div>
+
             <div class="setup-step">
               <h3>Step 1 — Register an App in Microsoft Entra ID</h3>
               <p>Go to <a href="https://portal.azure.com" target="_blank" rel="noopener">portal.azure.com</a> → search <strong>Microsoft Entra ID</strong> → left sidebar: <strong>App registrations → + New registration</strong>.</p>
               <ul>
                 <li><strong>Name:</strong> e.g. <code>SecureAuth-EmailChecker</code></li>
                 <li><strong>Supported account types:</strong> Single tenant (this organisation only)</li>
-                <li><strong>Redirect URI:</strong> leave blank</li>
-                <li>Click <strong>Register</strong></li>
+                <li><strong>Redirect URI:</strong> leave blank → click <strong>Register</strong></li>
               </ul>
             </div>
 
             <div class="setup-step">
               <h3>Step 2 — Copy your App IDs</h3>
-              <p>On the app <strong>Overview</strong> page, copy these two values into the config panel below:</p>
+              <p>On the app <strong>Overview</strong> page, note these — you'll need them in Step 5:</p>
               <ul>
-                <li><strong>Application (client) ID</strong> → paste into <em>Client ID</em></li>
-                <li><strong>Directory (tenant) ID</strong> → paste into <em>Tenant ID</em></li>
+                <li><strong>Application (client) ID</strong></li>
+                <li><strong>Directory (tenant) ID</strong></li>
               </ul>
             </div>
 
@@ -463,26 +466,52 @@
               <ul>
                 <li>Left sidebar → <strong>API permissions → + Add a permission</strong></li>
                 <li>Choose <strong>Microsoft Graph → Application permissions</strong></li>
-                <li>Search and select: <strong>User.ReadBasic.All</strong></li>
-                <li>Click <strong>Add permissions</strong></li>
+                <li>Search and select: <strong>User.ReadBasic.All</strong> → <strong>Add permissions</strong></li>
                 <li>Click <strong>Grant admin consent for [your tenant]</strong> → confirm ✓</li>
               </ul>
-              <div class="info-box">ℹ <strong>User.ReadBasic.All</strong> lets the app query whether an email exists in your directory via the Microsoft Graph API. It only exposes basic profile info — no passwords or sensitive data.</div>
             </div>
 
             <div class="setup-step">
               <h3>Step 4 — Create a Client Secret</h3>
               <ul>
                 <li>Left sidebar → <strong>Certificates &amp; secrets → + New client secret</strong></li>
-                <li>Description: e.g. <code>SecureAuth SPA Secret</code> | Expiry: 24 months</li>
-                <li>Click <strong>Add</strong></li>
-                <li>⚠ <strong>Copy the secret VALUE immediately</strong> — it is hidden after you leave the page</li>
+                <li>Description: <code>SecureAuth Worker Secret</code> | Expiry: 24 months → <strong>Add</strong></li>
+                <li>⚠ <strong>Copy the secret VALUE immediately</strong> — it disappears after you leave the page</li>
               </ul>
-              <div class="warn-box">⚠ This secret is stored in your browser only. Never commit it to a public git repository. In production, proxy this call through a backend or MuleSoft API instead.</div>
             </div>
 
             <div class="setup-step">
-              <h3>Step 5 — Ensure test users exist in your tenant</h3>
+              <h3>Step 5 — Deploy the Cloudflare Worker (fixes the CORS error)</h3>
+              <p>The Worker code was downloaded alongside this SPA as <strong>worker.js</strong>. Follow these steps:</p>
+              <ul>
+                <li>Go to <a href="https://workers.cloudflare.com" target="_blank" rel="noopener">workers.cloudflare.com</a> → sign up free (no credit card needed)</li>
+                <li>Click <strong>Create a Worker</strong></li>
+                <li>Delete all the default code in the editor</li>
+                <li>Open <strong>worker.js</strong> and paste the entire contents into the editor</li>
+                <li>Click <strong>Save and Deploy</strong></li>
+                <li>Copy your Worker URL — it looks like: <code>https://secureauth-proxy.your-name.workers.dev</code></li>
+              </ul>
+            </div>
+
+            <div class="setup-step">
+              <h3>Step 6 — Add Environment Variables to the Worker</h3>
+              <p>In Cloudflare: <strong>Workers → your worker → Settings → Variables → Add variable</strong>. Add all four:</p>
+              <div class="code-block" id="workerVars">ENTRA_TENANT_ID      → your Directory (tenant) ID
+ENTRA_CLIENT_ID      → your Application (client) ID
+ENTRA_CLIENT_SECRET  → your client secret VALUE (mark as Encrypted)
+ALLOWED_ORIGIN       → https://jerrya-byte.github.io
+<button class="copy-btn" onclick="copyCode('workerVars',this)">Copy</button></div>
+              <p style="margin-top:0.6rem;">Click <strong>Save and deploy</strong> after adding all variables.</p>
+              <div class="warn-box">⚠ Mark <strong>ENTRA_CLIENT_SECRET</strong> as <em>Encrypted</em> so it is never visible again after saving.</div>
+            </div>
+
+            <div class="setup-step">
+              <h3>Step 7 — Paste the Worker URL into the config panel below</h3>
+              <p>Copy your Worker URL from Cloudflare and paste it into the <strong>Worker Proxy URL</strong> field in the Entra ID config panel. The status dot will turn green when it's set.</p>
+            </div>
+
+            <div class="setup-step">
+              <h3>Step 8 — Ensure test users exist in your tenant</h3>
               <p>Any user in your Entra ID directory will pass the email check. To add test users: <strong>Entra ID → Users → + New user → Create user</strong>.</p>
               <div class="code-block" id="sampleEmails">-- Test user emails (use your tenant domain):
 john.doe@yourtenant.onmicrosoft.com
@@ -533,30 +562,21 @@ WHERE email = 'jane.smith@yourtenant.onmicrosoft.com';
         <div class="config-section-header">
           <h2 class="config-section-title">
             🔷 Identity Store — Email Check
-            <span class="config-badge badge-entra">Microsoft Entra ID</span>
+            <span class="config-badge badge-entra">Microsoft Entra ID via Cloudflare Worker</span>
           </h2>
         </div>
         <div class="config-body">
-          <div class="config-row three">
-            <div class="config-field">
-              <label for="entraTenantId">Tenant ID</label>
-              <input type="text" id="entraTenantId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                aria-label="Entra ID Tenant ID" autocomplete="off" />
-            </div>
-            <div class="config-field">
-              <label for="entraClientId">Client ID</label>
-              <input type="text" id="entraClientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                aria-label="Entra ID Application Client ID" autocomplete="off" />
-            </div>
-            <div class="config-field">
-              <label for="entraClientSecret">Client Secret</label>
-              <input type="password" id="entraClientSecret" placeholder="••••••••••••••••••••••"
-                aria-label="Entra ID Client Secret" autocomplete="off" />
+          <div class="config-row">
+            <div class="config-field" style="grid-column:1/-1;">
+              <label for="workerUrl">Worker Proxy URL</label>
+              <input type="url" id="workerUrl"
+                placeholder="https://secureauth-proxy.your-name.workers.dev"
+                aria-label="Cloudflare Worker proxy URL" autocomplete="off" />
             </div>
           </div>
           <div class="config-status" aria-live="polite" aria-atomic="true">
             <span class="status-dot idle" id="entraDot"></span>
-            <span id="entraStatusText" style="font-size:0.68rem;color:var(--text-muted)">Enter Tenant ID, Client ID, and Client Secret to enable Entra ID email check</span>
+            <span id="entraStatusText" style="font-size:0.68rem;color:var(--text-muted)">Paste your Cloudflare Worker URL to enable Entra ID email check — see setup guide above</span>
           </div>
         </div>
       </div>
@@ -784,20 +804,20 @@ WHERE email = 'jane.smith@yourtenant.onmicrosoft.com';
     this.setAttribute('aria-pressed',String(document.body.classList.toggle('hc')));
   });
 
-  /* ── Config: Entra ID ── */
+  /* ── Config: Entra ID (Worker URL) ── */
   let entraTimer;
-  ['entraTenantId','entraClientId','entraClientSecret'].forEach(id => {
-    $(id).addEventListener('input', () => {
-      clearTimeout(entraTimer);
-      entraTimer = setTimeout(() => {
-        const ok = $('entraTenantId').value.trim() && $('entraClientId').value.trim() && $('entraClientSecret').value.trim();
-        $('entraDot').className = 'status-dot ' + (ok ? 'connected' : 'idle');
-        $('entraStatusText').textContent = ok
-          ? '✓ Entra ID credentials set — ready for email verification'
-          : 'Enter Tenant ID, Client ID, and Client Secret to enable Entra ID email check';
-        $('entraStatusText').style.color = ok ? 'var(--green)' : 'var(--text-muted)';
-      }, 400);
-    });
+  $('workerUrl').addEventListener('input', () => {
+    clearTimeout(entraTimer);
+    entraTimer = setTimeout(() => {
+      const url = $('workerUrl').value.trim();
+      const ok  = url.startsWith('https://') && url.includes('workers.dev');
+      $('entraDot').className = 'status-dot ' + (!url ? 'idle' : ok ? 'connected' : 'disconnected');
+      $('entraStatusText').textContent = !url
+        ? 'Paste your Cloudflare Worker URL to enable Entra ID email check — see setup guide above'
+        : ok ? '✓ Worker URL set — ready for Entra ID email check'
+             : '✕ URL should be a valid workers.dev address (https://name.workers.dev)';
+      $('entraStatusText').style.color = !url ? 'var(--text-muted)' : ok ? 'var(--green)' : 'var(--red)';
+    }, 400);
   });
 
   /* ── Config: Supabase ── */
@@ -823,40 +843,18 @@ WHERE email = 'jane.smith@yourtenant.onmicrosoft.com';
     });
   });
 
-  /* ── Entra ID: Get access token (client credentials flow) ── */
-  async function getEntraToken(tenantId, clientId, secret) {
-    const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: clientId,
-        client_secret: secret,
-        scope: 'https://graph.microsoft.com/.default'
-      })
-    });
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error_description || d.error || 'Failed to get Entra access token');
-    return d.access_token;
-  }
-
-  /* ── Entra ID: Check user via Graph API ── */
+  /* ── Entra ID: Check email via Cloudflare Worker proxy ── */
   async function checkEmailInEntra(email) {
-    const tid = $('entraTenantId').value.trim();
-    const cid = $('entraClientId').value.trim();
-    const sec = $('entraClientSecret').value.trim();
-    if (!tid||!cid||!sec) throw new Error('Please fill in all three Entra ID configuration fields above.');
-
-    const token = await getEntraToken(tid, cid, sec);
-    const res = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}?$select=id,displayName,userPrincipalName`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (res.status === 404) return null;
-    if (res.status === 401) throw new Error('Entra access token rejected — check credentials and admin consent.');
-    if (res.status === 403) throw new Error('Insufficient permissions. Ensure User.ReadBasic.All is granted with admin consent.');
-    if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e?.error?.message||`Graph API error (HTTP ${res.status})`); }
-    return await res.json();
+    const workerUrl = $('workerUrl').value.trim();
+    if (!workerUrl) throw new Error('Please paste your Cloudflare Worker URL into the Entra ID config panel above.');
+    const res = await fetch(workerUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || data.detail || `Worker error (HTTP ${res.status})`);
+    return data.found ? data : null;
   }
 
   /* ── Screen 1: Email Check ── */
