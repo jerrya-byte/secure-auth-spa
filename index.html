@@ -11,960 +11,797 @@
 
   <style>
     :root {
-      --bg:           #08070f;
-      --bg2:          #0f0d1a;
-      --bg3:          #171426;
-      --bg4:          #1e1a34;
-      --border:       rgba(120, 90, 220, 0.18);
-      --border-hover: rgba(160, 120, 255, 0.4);
-      --purple:       #7c5ce0;
-      --purple-light: #a78bfa;
-      --purple-glow:  rgba(124, 92, 224, 0.3);
-      --accent:       #b06aff;
-      --green:        #34d399;
-      --red:          #f87171;
-      --yellow:       #fbbf24;
-      --blue:         #60a5fa;
-      --text:         #e2dff5;
-      --text-muted:   #7a708e;
-      --text-dim:     #4a4460;
-      --focus:        #c4b5fd;
-      --radius:       6px;
-      --radius-lg:    12px;
-      --mono:         'IBM Plex Mono', monospace;
-      --sans:         'Syne', sans-serif;
+      --bg:#08070f; --bg2:#0f0d1a; --bg3:#171426; --bg4:#1e1a34;
+      --border:rgba(120,90,220,0.18); --border-h:rgba(160,120,255,0.4);
+      --purple:#7c5ce0; --purple-l:#a78bfa; --glow:rgba(124,92,224,0.3);
+      --accent:#b06aff; --green:#34d399; --red:#f87171;
+      --yellow:#fbbf24; --blue:#60a5fa; --orange:#fb923c;
+      --text:#e2dff5; --muted:#7a708e; --dim:#4a4460;
+      --focus:#c4b5fd; --r:6px; --rl:12px;
+      --mono:'IBM Plex Mono',monospace; --sans:'Syne',sans-serif;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{font-size:16px;scroll-behavior:smooth;}
+    body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden;line-height:1.6;}
+    .skip-link{position:fixed;top:-100px;left:1rem;z-index:9999;background:var(--focus);color:#000;padding:.6rem 1.2rem;border-radius:var(--r);font-size:.8rem;text-decoration:none;transition:top .2s;}
+    .skip-link:focus{top:1rem;}
+    :focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:var(--r);}
+    :focus:not(:focus-visible){outline:none;}
+    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(124,92,224,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(124,92,224,.04) 1px,transparent 1px);background-size:40px 40px;}
+    body::after{content:'';position:fixed;width:600px;height:600px;border-radius:50%;background:radial-gradient(ellipse,rgba(124,92,224,.12) 0%,transparent 70%);top:-200px;right:-100px;z-index:0;pointer-events:none;}
+    .shell{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;}
+
+    /* ── Top bar ── */
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 2rem;border-bottom:1px solid var(--border);background:rgba(8,7,15,.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50;}
+    .brand{display:flex;align-items:center;gap:.6rem;font-family:var(--sans);font-size:1rem;font-weight:700;color:var(--text);text-decoration:none;}
+    .brand-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--purple),var(--accent));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#fff;}
+    .topbar-r{display:flex;align-items:center;gap:1rem;}
+    .steps{display:flex;align-items:center;gap:.4rem;}
+    .sdot{width:8px;height:8px;border-radius:50%;background:var(--border);border:1px solid var(--border);transition:all .3s;}
+    .sdot.active{background:var(--accent);border-color:var(--accent);box-shadow:0 0 8px var(--accent);}
+    .sdot.done{background:var(--green);border-color:var(--green);}
+    .hc-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:.35rem .8rem;font-family:var(--mono);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border-radius:var(--r);transition:all .2s;}
+    .hc-btn:hover{border-color:var(--purple-l);color:var(--purple-l);}
+    .hc-btn[aria-pressed="true"]{background:var(--purple);color:#fff;border-color:var(--purple);}
+
+    main{flex:1;display:flex;flex-direction:column;align-items:center;padding:3rem 1.5rem 4rem;}
+
+    /* ── Setup guide ── */
+    .guide-wrap{width:100%;max-width:960px;margin-bottom:1.5rem;border:1px solid var(--yellow);border-radius:var(--rl);overflow:hidden;background:rgba(251,191,36,.04);}
+    .guide-toggle{width:100%;background:transparent;border:none;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:var(--yellow);font-family:var(--mono);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;}
+    .guide-toggle:hover{background:rgba(251,191,36,.06);}
+    .guide-toggle .chev{transition:transform .3s;font-style:normal;}
+    .guide-toggle[aria-expanded="true"] .chev{transform:rotate(180deg);}
+    .guide-body{display:none;padding:0 1.5rem 1.5rem;border-top:1px solid rgba(251,191,36,.15);}
+    .guide-body.open{display:block;}
+    .gtabs{display:flex;margin-top:1.2rem;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+    .gtab{flex:1;padding:.65rem 1rem;background:transparent;border:none;border-right:1px solid var(--border);font-family:var(--mono);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:all .2s;}
+    .gtab:last-child{border-right:none;}
+    .gtab:hover{background:var(--bg3);color:var(--text);}
+    .gtab.active{background:var(--bg3);color:var(--yellow);}
+    .gpanel{display:none;}.gpanel.active{display:block;}
+    .gstep{margin-top:1.2rem;}
+    .gstep h3{font-family:var(--sans);font-size:.85rem;font-weight:600;color:var(--yellow);margin-bottom:.5rem;}
+    .gstep p{font-size:.72rem;color:var(--muted);line-height:1.8;margin-bottom:.5rem;}
+    .gstep a{color:var(--purple-l);}
+    .gstep ul{padding-left:1.2rem;font-size:.72rem;color:var(--muted);line-height:2;}
+    .gstep ul li strong{color:var(--text);}
+    .codeblock{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.2rem;font-size:.68rem;color:var(--green);line-height:1.7;white-space:pre;overflow-x:auto;position:relative;}
+    .cpybtn{position:absolute;top:.5rem;right:.5rem;background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;padding:.25rem .6rem;border-radius:4px;cursor:pointer;transition:all .2s;}
+    .cpybtn:hover{border-color:var(--green);color:var(--green);}
+    .cpybtn.copied{color:var(--green);border-color:var(--green);}
+    .ibox{background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.25);border-radius:var(--r);padding:.85rem 1rem;font-size:.7rem;color:var(--blue);line-height:1.7;margin-top:.75rem;}
+    .wbox{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:var(--r);padding:.85rem 1rem;font-size:.7rem;color:var(--yellow);line-height:1.7;margin-top:.75rem;}
+
+    /* ── Config panels ── */
+    .cfg{width:100%;max-width:960px;margin-bottom:1.25rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;}
+    .cfg-hdr{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid var(--border);}
+    .cfg-title{font-family:var(--sans);font-size:.8rem;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:.6rem;}
+    .badge{font-size:.58rem;padding:.18rem .55rem;border-radius:20px;letter-spacing:.12em;text-transform:uppercase;font-family:var(--mono);}
+    .b-entra{background:rgba(96,165,250,.15);color:var(--blue);border:1px solid rgba(96,165,250,.3);}
+    .b-supa{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.25);}
+    .cfg-body{padding:1.25rem 1.5rem;}
+    .cfg-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
+    .cfg-field label{display:block;font-size:.62rem;letter-spacing:.15em;text-transform:uppercase;color:var(--purple-l);margin-bottom:.35rem;}
+    .cfg-field input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.65rem .9rem;font-family:var(--mono);font-size:.72rem;border-radius:var(--r);transition:border-color .2s;}
+    .cfg-field input:focus{outline:none;border-color:var(--purple);}
+    .cfg-status{display:flex;align-items:center;gap:.5rem;font-size:.68rem;margin-top:.5rem;}
+    .sdot2{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+    .sdot2.on{background:var(--green);box-shadow:0 0 6px var(--green);}
+    .sdot2.off{background:var(--red);}
+    .sdot2.idle{background:var(--dim);}
+
+    /* ── Cards ── */
+    .card{width:100%;max-width:500px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;animation:cardIn .4s cubic-bezier(.34,1.56,.64,1) both;}
+    @keyframes cardIn{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .card-hdr{padding:1.5rem 2rem 1.25rem;border-bottom:1px solid var(--border);position:relative;overflow:hidden;}
+    .card-hdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--purple),var(--accent));}
+    .eyebrow{font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--accent);margin-bottom:.4rem;}
+    .card-title{font-family:var(--sans);font-size:1.35rem;font-weight:700;color:var(--text);line-height:1.2;}
+    .card-sub{font-size:.72rem;color:var(--muted);margin-top:.35rem;line-height:1.7;}
+    .pbadge{display:inline-flex;align-items:center;gap:.4rem;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;padding:.25rem .65rem;border-radius:20px;margin-top:.6rem;}
+    .pbadge.entra{background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.3);}
+    .pbadge.supa{background:rgba(52,211,153,.1);color:var(--green);border:1px solid rgba(52,211,153,.25);}
+    .pbadge-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+    .card-body{padding:1.75rem 2rem;}
+
+    /* ── Forms ── */
+    .fg{margin-bottom:1.25rem;}
+    .fg label{display:block;font-size:.62rem;letter-spacing:.15em;text-transform:uppercase;color:var(--purple-l);margin-bottom:.4rem;}
+    .iw{position:relative;}
+    .iicon{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:var(--dim);font-size:.85rem;pointer-events:none;}
+    .fi{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:.8rem 1rem .8rem 2.6rem;font-family:var(--mono);font-size:.82rem;border-radius:var(--r);transition:border-color .2s,box-shadow .2s;}
+    .fi:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px var(--glow);}
+    .fi:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
+    .fi::placeholder{color:var(--dim);}
+    .fi[readonly]{background:var(--bg2);color:var(--muted);cursor:default;}
+    .ferr{display:none;margin-top:.4rem;font-size:.67rem;color:var(--red);align-items:center;gap:.4rem;}
+    .ferr.show{display:flex;}
+
+    /* ── Buttons ── */
+    .btn{width:100%;padding:.9rem 1.5rem;font-family:var(--mono);font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;border:none;border-radius:var(--r);cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;}
+    .btn-p{background:linear-gradient(135deg,var(--purple),var(--accent));color:#fff;}
+    .btn-p:hover{transform:translateY(-1px);box-shadow:0 8px 24px var(--glow);}
+    .btn-p:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none;}
+    .btn-g{background:transparent;color:var(--muted);border:1px solid var(--border);}
+    .btn-g:hover{border-color:var(--purple-l);color:var(--purple-l);}
+    .spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:none;}
+    .btn.loading .spin{display:block;}
+    .btn.loading .lbl{opacity:.6;}
+    @keyframes sp{to{transform:rotate(360deg)}}
+
+    /* ── Alerts ── */
+    .alert{display:none;margin-bottom:1rem;padding:.8rem 1rem;border-radius:var(--r);font-size:.72rem;line-height:1.6;align-items:flex-start;gap:.6rem;}
+    .alert.show{display:flex;}
+    .a-err{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:var(--red);}
+    .a-info{background:rgba(124,92,224,.1);border:1px solid var(--border);color:var(--purple-l);}
+    .a-warn{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);color:var(--yellow);}
+    .a-ok{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);color:var(--green);}
+    .aico{font-style:normal;flex-shrink:0;}
+
+    /* ── Token display ── */
+    .tcard{width:100%;max-width:960px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;animation:cardIn .4s cubic-bezier(.34,1.56,.64,1) both;}
+    .thdr{padding:1.5rem 2rem;border-bottom:1px solid var(--border);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;}
+    .thdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--green),var(--purple),var(--accent));}
+    .tbadge{display:flex;align-items:center;gap:.5rem;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);color:var(--green);padding:.35rem .85rem;border-radius:20px;font-size:.68rem;letter-spacing:.1em;}
+    .pdot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pa 1.5s ease-in-out infinite;}
+    @keyframes pa{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+    .tpanels{display:grid;grid-template-columns:1fr 1fr;}
+    .tpanel{padding:1.75rem 2rem;}
+    .tpanel:first-child{border-right:1px solid var(--border);}
+    .plabel{font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;}
+    .plabel::before{content:'';width:16px;height:1px;background:currentColor;}
+    .jwt-raw{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:1rem;font-size:.66rem;line-height:1.8;word-break:break-all;max-height:300px;overflow-y:auto;}
+    .ph{color:var(--yellow);} .ps{color:var(--dim);} .pp{color:var(--purple-l);} .pg{color:var(--green);}
+    .claims{display:flex;flex-direction:column;gap:.55rem;}
+    .crow{display:grid;grid-template-columns:170px 1fr;gap:.75rem;padding:.7rem .9rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);transition:border-color .2s;}
+    .crow:hover{border-color:var(--purple);}
+    .ckey{font-size:.6rem;letter-spacing:.1em;color:var(--accent);text-transform:uppercase;}
+    .cval{font-size:.72rem;color:var(--text);word-break:break-all;line-height:1.5;}
+    .cval.ok{color:var(--green);font-weight:500;}
+    .cval.mu{color:var(--muted);}
+    .cval.hi{color:var(--yellow);}
+    .cval.me{color:var(--orange);}
+    .cval.lo{color:var(--red);}
+    .tfooter{padding:1.25rem 2rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;}
+    .tfnote{font-size:.65rem;color:var(--muted);}
+
+    /* ── Writeback status bar ── */
+    .wb-bar{width:100%;max-width:500px;margin-bottom:1.5rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1.2rem;display:flex;align-items:center;gap:.75rem;font-size:.72rem;display:none;}
+    .wb-bar.show{display:flex;}
+    .wb-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--blue);border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0;}
+    .wb-check{color:var(--green);font-size:1rem;flex-shrink:0;}
+    .wb-x{color:var(--red);font-size:1rem;flex-shrink:0;}
+
+    /* ── Screens ── */
+    .screen{display:none;}
+    .screen.active{display:flex;flex-direction:column;align-items:center;width:100%;}
+
+    /* ── High contrast ── */
+    body.hc{
+      --bg:#000;--bg2:#0a0a0a;--bg3:#111;--bg4:#1a1a1a;
+      --border:rgba(200,170,255,.4);--purple:#b090ff;--purple-l:#d0b8ff;--accent:#e0c0ff;
+      --green:#00ff88;--red:#ff6060;--yellow:#ffdd00;--blue:#80c0ff;--orange:#ffaa44;
+      --text:#fff;--muted:#ccc;--dim:#888;--focus:#ffff00;
     }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { font-size: 16px; scroll-behavior: smooth; }
-    body {
-      background: var(--bg); color: var(--text);
-      font-family: var(--mono); min-height: 100vh;
-      overflow-x: hidden; line-height: 1.6;
-    }
+    ::-webkit-scrollbar{width:4px;height:4px;}
+    ::-webkit-scrollbar-track{background:var(--bg2);}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 
-    .skip-link {
-      position: fixed; top: -100px; left: 1rem; z-index: 9999;
-      background: var(--focus); color: #000;
-      padding: 0.6rem 1.2rem; border-radius: var(--radius);
-      font-size: 0.8rem; text-decoration: none;
-      transition: top 0.2s;
+    @media(max-width:700px){
+      .cfg-row{grid-template-columns:1fr;}
+      .tpanels{grid-template-columns:1fr;}
+      .tpanel:first-child{border-right:none;border-bottom:1px solid var(--border);}
+      .crow{grid-template-columns:130px 1fr;}
+      .card-body,.card-hdr{padding:1.25rem;}
     }
-    .skip-link:focus { top: 1rem; }
-
-    :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: var(--radius); }
-    :focus:not(:focus-visible) { outline: none; }
-
-    body::before {
-      content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image:
-        linear-gradient(rgba(124,92,224,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(124,92,224,0.04) 1px, transparent 1px);
-      background-size: 40px 40px;
-    }
-    body::after {
-      content: ''; position: fixed;
-      width: 600px; height: 600px; border-radius: 50%;
-      background: radial-gradient(ellipse, rgba(124,92,224,0.12) 0%, transparent 70%);
-      top: -200px; right: -100px; z-index: 0; pointer-events: none;
-    }
-
-    .shell { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
-
-    /* Top Bar */
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 1.1rem 2rem; border-bottom: 1px solid var(--border);
-      background: rgba(8,7,15,0.8); backdrop-filter: blur(12px);
-      position: sticky; top: 0; z-index: 50;
-    }
-    .topbar-brand {
-      display: flex; align-items: center; gap: 0.6rem;
-      font-family: var(--sans); font-size: 1rem; font-weight: 700;
-      color: var(--text); text-decoration: none;
-    }
-    .brand-icon {
-      width: 28px; height: 28px;
-      background: linear-gradient(135deg, var(--purple), var(--accent));
-      border-radius: 6px; display: flex; align-items: center; justify-content: center;
-      font-size: 0.75rem; color: #fff;
-    }
-    .topbar-right { display: flex; align-items: center; gap: 1rem; }
-    .step-indicator { display: flex; align-items: center; gap: 0.4rem; }
-    .step-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--border); border: 1px solid var(--border); transition: all 0.3s;
-    }
-    .step-dot.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--accent); }
-    .step-dot.done   { background: var(--green);  border-color: var(--green); }
-    .hc-btn {
-      background: transparent; border: 1px solid var(--border);
-      color: var(--text-muted); padding: 0.35rem 0.8rem;
-      font-family: var(--mono); font-size: 0.65rem;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      cursor: pointer; border-radius: var(--radius); transition: all 0.2s;
-    }
-    .hc-btn:hover { border-color: var(--purple-light); color: var(--purple-light); }
-    .hc-btn[aria-pressed="true"] { background: var(--purple); color: #fff; border-color: var(--purple); }
-
-    main { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 3rem 1.5rem 4rem; }
-
-    /* Setup Guide */
-    .setup-guide {
-      width: 100%; max-width: 960px; margin-bottom: 1.5rem;
-      border: 1px solid var(--yellow); border-radius: var(--radius-lg);
-      overflow: hidden; background: rgba(251,191,36,0.04);
-    }
-    .setup-toggle {
-      width: 100%; background: transparent; border: none; padding: 1rem 1.5rem;
-      display: flex; align-items: center; justify-content: space-between;
-      cursor: pointer; color: var(--yellow);
-      font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase;
-    }
-    .setup-toggle:hover { background: rgba(251,191,36,0.06); }
-    .setup-toggle .chevron { transition: transform 0.3s; font-style: normal; }
-    .setup-toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
-    .setup-body { display: none; padding: 0 1.5rem 1.5rem; border-top: 1px solid rgba(251,191,36,0.15); }
-    .setup-body.open { display: block; }
-
-    .guide-tabs {
-      display: flex; margin-top: 1.2rem;
-      border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
-    }
-    .guide-tab {
-      flex: 1; padding: 0.65rem 1rem; background: transparent; border: none;
-      font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--text-muted); cursor: pointer; border-right: 1px solid var(--border); transition: all 0.2s;
-    }
-    .guide-tab:last-child { border-right: none; }
-    .guide-tab:hover { background: var(--bg3); color: var(--text); }
-    .guide-tab.active { background: var(--bg3); color: var(--yellow); }
-    .guide-panel { display: none; }
-    .guide-panel.active { display: block; }
-
-    .setup-step { margin-top: 1.2rem; }
-    .setup-step h3 { font-family: var(--sans); font-size: 0.85rem; font-weight: 600; color: var(--yellow); margin-bottom: 0.5rem; }
-    .setup-step p  { font-size: 0.72rem; color: var(--text-muted); line-height: 1.8; margin-bottom: 0.5rem; }
-    .setup-step a  { color: var(--purple-light); }
-    .setup-step ul { padding-left: 1.2rem; font-size: 0.72rem; color: var(--text-muted); line-height: 2; }
-    .setup-step ul li strong { color: var(--text); }
-
-    .code-block {
-      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 1rem 1.2rem; font-size: 0.68rem; color: var(--green);
-      line-height: 1.7; white-space: pre; overflow-x: auto; position: relative;
-    }
-    .copy-btn {
-      position: absolute; top: 0.5rem; right: 0.5rem;
-      background: var(--bg3); border: 1px solid var(--border);
-      color: var(--text-muted); font-family: var(--mono); font-size: 0.6rem;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      padding: 0.25rem 0.6rem; border-radius: 4px; cursor: pointer; transition: all 0.2s;
-    }
-    .copy-btn:hover { border-color: var(--green); color: var(--green); }
-    .copy-btn.copied { color: var(--green); border-color: var(--green); }
-
-    .info-box {
-      background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.25);
-      border-radius: var(--radius); padding: 0.85rem 1rem;
-      font-size: 0.7rem; color: var(--blue); line-height: 1.7; margin-top: 0.75rem;
-    }
-    .warn-box {
-      background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25);
-      border-radius: var(--radius); padding: 0.85rem 1rem;
-      font-size: 0.7rem; color: var(--yellow); line-height: 1.7; margin-top: 0.75rem;
-    }
-
-    /* Config sections */
-    .config-section {
-      width: 100%; max-width: 960px; margin-bottom: 1.25rem;
-      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;
-    }
-    .config-section-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
-    }
-    .config-section-title {
-      font-family: var(--sans); font-size: 0.8rem; font-weight: 600;
-      color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase;
-      display: flex; align-items: center; gap: 0.6rem;
-    }
-    .config-badge {
-      font-size: 0.58rem; padding: 0.18rem 0.55rem; border-radius: 20px;
-      letter-spacing: 0.12em; text-transform: uppercase; font-family: var(--mono);
-    }
-    .badge-entra    { background: rgba(96,165,250,0.15); color: var(--blue);  border: 1px solid rgba(96,165,250,0.3); }
-    .badge-supabase { background: rgba(52,211,153,0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
-    .config-body { padding: 1.25rem 1.5rem; }
-    .config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-    .config-row.three { grid-template-columns: 1fr 1fr 1fr; }
-    .config-field label {
-      display: block; font-size: 0.62rem; letter-spacing: 0.15em;
-      text-transform: uppercase; color: var(--purple-light); margin-bottom: 0.35rem;
-    }
-    .config-field input {
-      width: 100%; background: var(--bg); border: 1px solid var(--border);
-      color: var(--text); padding: 0.65rem 0.9rem;
-      font-family: var(--mono); font-size: 0.72rem; border-radius: var(--radius); transition: border-color 0.2s;
-    }
-    .config-field input:focus { outline: none; border-color: var(--purple); }
-    .config-field input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-    .config-field input::placeholder { color: var(--text-dim); }
-    .config-status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.68rem; margin-top: 0.5rem; }
-    .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .status-dot.connected    { background: var(--green); box-shadow: 0 0 6px var(--green); }
-    .status-dot.disconnected { background: var(--red); }
-    .status-dot.idle         { background: var(--text-dim); }
-
-    /* Cards */
-    .card {
-      width: 100%; max-width: 500px;
-      background: var(--bg2); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); overflow: hidden;
-      animation: cardIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
-    }
-    @keyframes cardIn {
-      from { opacity: 0; transform: translateY(20px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    .card-header {
-      padding: 1.5rem 2rem 1.25rem; border-bottom: 1px solid var(--border);
-      position: relative; overflow: hidden;
-    }
-    .card-header::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-      background: linear-gradient(90deg, var(--purple), var(--accent));
-    }
-    .card-eyebrow { font-size: 0.6rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.4rem; }
-    .card-title   { font-family: var(--sans); font-size: 1.35rem; font-weight: 700; color: var(--text); line-height: 1.2; }
-    .card-subtitle { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.35rem; line-height: 1.7; }
-    .provider-badge {
-      display: inline-flex; align-items: center; gap: 0.4rem;
-      font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase;
-      padding: 0.25rem 0.65rem; border-radius: 20px; margin-top: 0.6rem;
-    }
-    .provider-badge.entra   { background: rgba(96,165,250,0.12); color: var(--blue);  border: 1px solid rgba(96,165,250,0.3); }
-    .provider-badge.supabase { background: rgba(52,211,153,0.1);  color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
-    .provider-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-    .card-body { padding: 1.75rem 2rem; }
-
-    /* Form */
-    .form-group { margin-bottom: 1.25rem; }
-    .form-group label {
-      display: block; font-size: 0.62rem; letter-spacing: 0.15em;
-      text-transform: uppercase; color: var(--purple-light); margin-bottom: 0.4rem;
-    }
-    .input-wrap { position: relative; }
-    .input-icon {
-      position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%);
-      color: var(--text-dim); font-size: 0.85rem; pointer-events: none;
-    }
-    .form-input {
-      width: 100%; background: var(--bg3); border: 1px solid var(--border);
-      color: var(--text); padding: 0.8rem 1rem 0.8rem 2.6rem;
-      font-family: var(--mono); font-size: 0.82rem; border-radius: var(--radius);
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .form-input:focus { outline: none; border-color: var(--purple); box-shadow: 0 0 0 3px var(--purple-glow); }
-    .form-input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-    .form-input::placeholder { color: var(--text-dim); }
-    .form-input[readonly] { background: var(--bg2); color: var(--text-muted); cursor: default; }
-
-    .field-error { display: none; margin-top: 0.4rem; font-size: 0.67rem; color: var(--red); align-items: center; gap: 0.4rem; }
-    .field-error.show { display: flex; }
-
-    /* Buttons */
-    .btn {
-      width: 100%; padding: 0.9rem 1.5rem;
-      font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase;
-      border: none; border-radius: var(--radius); cursor: pointer; transition: all 0.2s;
-      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-    }
-    .btn-primary { background: linear-gradient(135deg, var(--purple), var(--accent)); color: #fff; }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px var(--purple-glow); }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
-    .btn-ghost:hover { border-color: var(--purple-light); color: var(--purple-light); }
-    .spinner {
-      width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
-      border-radius: 50%; animation: spin 0.7s linear infinite; display: none;
-    }
-    .btn.loading .spinner { display: block; }
-    .btn.loading .btn-label { opacity: 0.6; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* Alerts */
-    .alert {
-      display: none; margin-bottom: 1rem; padding: 0.8rem 1rem;
-      border-radius: var(--radius); font-size: 0.72rem; line-height: 1.6;
-      align-items: flex-start; gap: 0.6rem;
-    }
-    .alert.show { display: flex; }
-    .alert-error { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: var(--red); }
-    .alert-info  { background: rgba(124,92,224,0.1);  border: 1px solid var(--border);          color: var(--purple-light); }
-    .alert-icon  { font-style: normal; flex-shrink: 0; }
-
-    /* Token */
-    .token-card {
-      width: 100%; max-width: 960px;
-      background: var(--bg2); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); overflow: hidden;
-      animation: cardIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
-    }
-    .token-card-header {
-      padding: 1.5rem 2rem; border-bottom: 1px solid var(--border);
-      position: relative; overflow: hidden;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .token-card-header::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-      background: linear-gradient(90deg, var(--green), var(--purple), var(--accent));
-    }
-    .token-success-badge {
-      display: flex; align-items: center; gap: 0.5rem;
-      background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.3);
-      color: var(--green); padding: 0.35rem 0.85rem;
-      border-radius: 20px; font-size: 0.68rem; letter-spacing: 0.1em;
-    }
-    .pulse-dot {
-      width: 6px; height: 6px; border-radius: 50%; background: var(--green);
-      animation: pulse-anim 1.5s ease-in-out infinite;
-    }
-    @keyframes pulse-anim { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
-    .token-panels { display: grid; grid-template-columns: 1fr 1fr; }
-    .token-panel { padding: 1.75rem 2rem; }
-    .token-panel:first-child { border-right: 1px solid var(--border); }
-    .panel-label {
-      font-size: 0.6rem; letter-spacing: 0.25em; text-transform: uppercase;
-      color: var(--text-muted); margin-bottom: 1rem;
-      display: flex; align-items: center; gap: 0.5rem;
-    }
-    .panel-label::before { content:''; width:16px; height:1px; background:currentColor; }
-    .jwt-raw {
-      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 1rem; font-size: 0.66rem; line-height: 1.8;
-      word-break: break-all; max-height: 260px; overflow-y: auto;
-    }
-    .part-header  { color: var(--yellow); }
-    .part-sep     { color: var(--text-dim); }
-    .part-payload { color: var(--purple-light); }
-    .part-sig     { color: var(--green); }
-    .claims-list { display: flex; flex-direction: column; gap: 0.6rem; }
-    .claim-row {
-      display: grid; grid-template-columns: 160px 1fr; gap: 0.75rem;
-      padding: 0.7rem 0.9rem; background: var(--bg3);
-      border: 1px solid var(--border); border-radius: var(--radius); transition: border-color 0.2s;
-    }
-    .claim-row:hover { border-color: var(--purple); }
-    .claim-key   { font-size: 0.62rem; letter-spacing: 0.1em; color: var(--accent); text-transform: uppercase; }
-    .claim-value { font-size: 0.72rem; color: var(--text); word-break: break-all; line-height: 1.5; }
-    .claim-value.success-val { color: var(--green); font-weight: 500; }
-    .claim-value.muted       { color: var(--text-muted); }
-    .token-footer {
-      padding: 1.25rem 2rem; border-top: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
-    }
-    .token-footer-note { font-size: 0.65rem; color: var(--text-muted); }
-
-    .screen { display: none; }
-    .screen.active { display: flex; flex-direction: column; align-items: center; width: 100%; }
-
-    /* High Contrast */
-    body.hc {
-      --bg:#000; --bg2:#0a0a0a; --bg3:#111; --bg4:#1a1a1a;
-      --border:rgba(200,170,255,0.4); --purple:#b090ff;
-      --purple-light:#d0b8ff; --accent:#e0c0ff;
-      --green:#00ff88; --red:#ff6060; --yellow:#ffdd00; --blue:#80c0ff;
-      --text:#ffffff; --text-muted:#cccccc; --text-dim:#888; --focus:#ffff00;
-    }
-
-    ::-webkit-scrollbar { width:4px; height:4px; }
-    ::-webkit-scrollbar-track { background:var(--bg2); }
-    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-
-    @media (max-width:700px) {
-      .config-row, .config-row.three { grid-template-columns:1fr; }
-      .token-panels { grid-template-columns:1fr; }
-      .token-panel:first-child { border-right:none; border-bottom:1px solid var(--border); }
-      .claim-row { grid-template-columns:120px 1fr; }
-      .card-body, .card-header { padding:1.25rem; }
-    }
-    @media (prefers-reduced-motion:reduce) {
-      *,*::before,*::after { animation:none!important; transition:none!important; }
-    }
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
   </style>
 </head>
 <body>
   <a href="#main" class="skip-link">Skip to main content</a>
-
   <div class="shell">
 
+    <!-- ── Top bar ── -->
     <header role="banner">
       <nav class="topbar" aria-label="Application navigation">
-        <a href="#" class="topbar-brand" aria-label="SecureAuth Identity Portal">
-          <span class="brand-icon" aria-hidden="true">✦</span>
-          SecureAuth
+        <a href="#" class="brand" aria-label="SecureAuth Identity Portal">
+          <span class="brand-icon" aria-hidden="true">✦</span>SecureAuth
         </a>
-        <div class="topbar-right">
-          <div class="step-indicator" role="progressbar"
-            aria-valuemin="1" aria-valuemax="3" aria-valuenow="1"
-            aria-label="Step 1 of 3: Email Check" id="stepProgress">
-            <span class="step-dot active" id="dot1" aria-hidden="true"></span>
-            <span class="step-dot"        id="dot2" aria-hidden="true"></span>
-            <span class="step-dot"        id="dot3" aria-hidden="true"></span>
+        <div class="topbar-r">
+          <div class="steps" role="progressbar" aria-valuemin="1" aria-valuemax="3" aria-valuenow="1" aria-label="Step 1 of 3" id="stepBar">
+            <span class="sdot active" id="d1" aria-hidden="true"></span>
+            <span class="sdot"        id="d2" aria-hidden="true"></span>
+            <span class="sdot"        id="d3" aria-hidden="true"></span>
           </div>
-          <button class="hc-btn" id="hcBtn" aria-pressed="false" aria-label="Toggle high contrast mode">
-            High Contrast
-          </button>
+          <button class="hc-btn" id="hcBtn" aria-pressed="false" aria-label="Toggle high contrast">High Contrast</button>
         </div>
       </nav>
     </header>
 
     <main id="main">
 
-      <!-- ═══ SETUP GUIDE ═══ -->
-      <div class="setup-guide" role="region" aria-label="Setup guide">
-        <button class="setup-toggle" id="setupToggle" aria-expanded="true" aria-controls="setupBody">
-          <span>⚠ &nbsp; Setup Guide — Entra ID + Supabase Configuration</span>
-          <em class="chevron" aria-hidden="true">▲</em>
+      <!-- ════════════════════════════════
+           SETUP GUIDE
+      ════════════════════════════════ -->
+      <div class="guide-wrap" role="region" aria-label="Setup guide">
+        <button class="guide-toggle" id="gToggle" aria-expanded="false" aria-controls="gBody">
+          <span>⚠ &nbsp; Setup Guide — Configuration &amp; SQL</span>
+          <em class="chev" aria-hidden="true">▼</em>
         </button>
-        <div class="setup-body open" id="setupBody">
+        <div class="guide-body" id="gBody">
 
-          <div class="guide-tabs" role="tablist" aria-label="Setup sections">
-            <button class="guide-tab active" role="tab" aria-selected="true"  id="tabEntra"    onclick="switchTab('Entra')"   >🔷 Entra ID — Email Check</button>
-            <button class="guide-tab"        role="tab" aria-selected="false" id="tabSupabase" onclick="switchTab('Supabase')">🟢 Supabase — Authentication</button>
+          <div class="gtabs" role="tablist">
+            <button class="gtab active" role="tab" aria-selected="true"  id="tEntra"    onclick="gTab('Entra')"   >🔷 Entra ID Worker</button>
+            <button class="gtab"        role="tab" aria-selected="false" id="tSupabase" onclick="gTab('Supabase')">🟢 Supabase Table</button>
+            <button class="gtab"        role="tab" aria-selected="false" id="tWorker"   onclick="gTab('Worker')"  >⚙ Worker Updates</button>
           </div>
 
           <!-- ENTRA TAB -->
-          <div class="guide-panel active" id="guideEntra" role="tabpanel" aria-labelledby="tabEntra">
-
-            <div class="info-box" style="margin-top:1rem;">
-              🔒 <strong>Why a Worker proxy?</strong> Microsoft's token endpoint blocks direct browser calls (CORS policy) as a security measure — client secrets must never be exposed in browser code. The Cloudflare Worker runs server-side, holds your secrets safely as environment variables, and returns only the result to your SPA.
-            </div>
-
-            <div class="setup-step">
-              <h3>Step 1 — Register an App in Microsoft Entra ID</h3>
-              <p>Go to <a href="https://portal.azure.com" target="_blank" rel="noopener">portal.azure.com</a> → search <strong>Microsoft Entra ID</strong> → left sidebar: <strong>App registrations → + New registration</strong>.</p>
+          <div class="gpanel active" id="pEntra" role="tabpanel" aria-labelledby="tEntra">
+            <div class="gstep">
+              <h3>New Entra Permission Required — User.ReadWrite.All</h3>
+              <p>The writeback feature (writing personal email to Entra's <code>otherMails</code>) requires a new permission on your existing App Registration.</p>
               <ul>
-                <li><strong>Name:</strong> e.g. <code>SecureAuth-EmailChecker</code></li>
-                <li><strong>Supported account types:</strong> Single tenant (this organisation only)</li>
-                <li><strong>Redirect URI:</strong> leave blank → click <strong>Register</strong></li>
-              </ul>
-            </div>
-
-            <div class="setup-step">
-              <h3>Step 2 — Copy your App IDs</h3>
-              <p>On the app <strong>Overview</strong> page, note these — you'll need them in Step 5:</p>
-              <ul>
-                <li><strong>Application (client) ID</strong></li>
-                <li><strong>Directory (tenant) ID</strong></li>
-              </ul>
-            </div>
-
-            <div class="setup-step">
-              <h3>Step 3 — Grant Microsoft Graph Permissions</h3>
-              <ul>
+                <li>Go to <a href="https://portal.azure.com" target="_blank" rel="noopener">portal.azure.com</a> → <strong>Entra ID → App registrations → SecureAuth-EmailChecker</strong></li>
                 <li>Left sidebar → <strong>API permissions → + Add a permission</strong></li>
-                <li>Choose <strong>Microsoft Graph → Application permissions</strong></li>
-                <li>Search and select: <strong>User.ReadBasic.All</strong> → <strong>Add permissions</strong></li>
+                <li><strong>Microsoft Graph → Application permissions</strong></li>
+                <li>Search and select: <strong>User.ReadWrite.All</strong> → <strong>Add permissions</strong></li>
                 <li>Click <strong>Grant admin consent for [your tenant]</strong> → confirm ✓</li>
               </ul>
+              <div class="wbox">⚠ <strong>User.ReadWrite.All</strong> allows updating user properties. Only grant this in environments you control. For production, scope this down with attribute-level restrictions.</div>
             </div>
-
-            <div class="setup-step">
-              <h3>Step 4 — Create a Client Secret</h3>
-              <ul>
-                <li>Left sidebar → <strong>Certificates &amp; secrets → + New client secret</strong></li>
-                <li>Description: <code>SecureAuth Worker Secret</code> | Expiry: 24 months → <strong>Add</strong></li>
-                <li>⚠ <strong>Copy the secret VALUE immediately</strong> — it disappears after you leave the page</li>
-              </ul>
-            </div>
-
-            <div class="setup-step">
-              <h3>Step 5 — Deploy the Cloudflare Worker (fixes the CORS error)</h3>
-              <p>The Worker code was downloaded alongside this SPA as <strong>worker.js</strong>. Follow these steps:</p>
-              <ul>
-                <li>Go to <a href="https://workers.cloudflare.com" target="_blank" rel="noopener">workers.cloudflare.com</a> → sign up free (no credit card needed)</li>
-                <li>Click <strong>Create a Worker</strong></li>
-                <li>Delete all the default code in the editor</li>
-                <li>Open <strong>worker.js</strong> and paste the entire contents into the editor</li>
-                <li>Click <strong>Save and Deploy</strong></li>
-                <li>Copy your Worker URL — it looks like: <code>https://secureauth-proxy.your-name.workers.dev</code></li>
-              </ul>
-            </div>
-
-            <div class="setup-step">
-              <h3>Step 6 — Add Environment Variables to the Worker</h3>
-              <p>In Cloudflare: <strong>Workers → your worker → Settings → Variables → Add variable</strong>. Add all four:</p>
-              <div class="code-block" id="workerVars">ENTRA_TENANT_ID      → your Directory (tenant) ID
-ENTRA_CLIENT_ID      → your Application (client) ID
-ENTRA_CLIENT_SECRET  → your client secret VALUE (mark as Encrypted)
-ALLOWED_ORIGIN       → https://jerrya-byte.github.io
-<button class="copy-btn" onclick="copyCode('workerVars',this)">Copy</button></div>
-              <p style="margin-top:0.6rem;">Click <strong>Save and deploy</strong> after adding all variables.</p>
-              <div class="warn-box">⚠ Mark <strong>ENTRA_CLIENT_SECRET</strong> as <em>Encrypted</em> so it is never visible again after saving.</div>
-            </div>
-
-            <div class="setup-step">
-              <h3>Step 7 — Paste the Worker URL into the config panel below</h3>
-              <p>Copy your Worker URL from Cloudflare and paste it into the <strong>Worker Proxy URL</strong> field in the Entra ID config panel. The status dot will turn green when it's set.</p>
-            </div>
-
-            <div class="setup-step">
-              <h3>Step 8 — Ensure test users exist in your tenant</h3>
-              <p>Any user in your Entra ID directory will pass the email check. To add test users: <strong>Entra ID → Users → + New user → Create user</strong>.</p>
-              <div class="code-block" id="sampleEmails">-- Test user emails (use your tenant domain):
-john.doe@yourtenant.onmicrosoft.com
-jane.smith@yourtenant.onmicrosoft.com
-<button class="copy-btn" onclick="copyCode('sampleEmails',this)">Copy</button></div>
-            </div>
-
-          </div><!-- /guideEntra -->
+          </div>
 
           <!-- SUPABASE TAB -->
-          <div class="guide-panel" id="guideSupabase" role="tabpanel" aria-labelledby="tabSupabase">
+          <div class="gpanel" id="pSupabase" role="tabpanel" aria-labelledby="tSupabase">
+            <div class="gstep">
+              <h3>Create the user_credentials table</h3>
+              <p>In your Supabase dashboard → <strong>SQL Editor</strong>, run this script to create the table and populate sample data:</p>
+              <div class="codeblock" id="sqlCreds">
+-- Create the user credentials table
+CREATE TABLE IF NOT EXISTS public.user_credentials (
+  id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  username         TEXT UNIQUE NOT NULL,
+  password         TEXT NOT NULL,
+  first_name       TEXT NOT NULL,
+  last_name        TEXT NOT NULL,
+  identity_strength TEXT NOT NULL,   -- 'High' | 'Medium' | 'Low'
+  personal_email   TEXT NOT NULL,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
 
-            <div class="setup-step">
-              <h3>Step 1 — Create a Supabase Project</h3>
-              <p>Go to <a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a> → Sign up free → <strong>New Project</strong>. Wait ~2 min for provisioning.</p>
+-- Enable RLS and allow anon reads (for login lookup)
+ALTER TABLE public.user_credentials ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow_anon_select"
+  ON public.user_credentials FOR SELECT USING (true);
+
+-- Sample data
+INSERT INTO public.user_credentials
+  (username, password, first_name, last_name, identity_strength, personal_email)
+VALUES
+  ('john.doe',    'Pass@1234', 'John',  'Doe',    'High',   'john.doe@gmail.com'),
+  ('jane.smith',  'Pass@5678', 'Jane',  'Smith',  'Medium', 'jane.smith@gmail.com'),
+  ('bob.jones',   'Pass@9012', 'Bob',   'Jones',  'Low',    'bob.jones@hotmail.com'),
+  ('alice.chen',  'Pass@3456', 'Alice', 'Chen',   'High',   'alice.chen@outlook.com'),
+  ('tom.wright',  'Pass@7890', 'Tom',   'Wright', 'Medium', 'tom.wright@yahoo.com')
+ON CONFLICT DO NOTHING;
+<button class="cpybtn" onclick="cpyCode('sqlCreds',this)">Copy</button></div>
+              <div class="ibox">ℹ Passwords are stored as plain text here for demo purposes. In production, use a hashed approach (e.g. bcrypt) or delegate authentication entirely to an identity provider.</div>
             </div>
-
-            <div class="setup-step">
-              <h3>Step 2 — Create Auth users (Identity Provider)</h3>
-              <p>Go to <strong>Authentication → Users → Add User</strong>. Use the same email addresses that exist in your Entra ID tenant. Then run this SQL in the <strong>SQL Editor</strong> to add name metadata to tokens:</p>
-              <div class="code-block" id="sqlB">-- Run AFTER creating Auth users via the Supabase dashboard
-
-UPDATE auth.users
-SET raw_user_meta_data = raw_user_meta_data ||
-  '{"first_name":"John","last_name":"Doe"}'::jsonb
-WHERE email = 'john.doe@yourtenant.onmicrosoft.com';
-
-UPDATE auth.users
-SET raw_user_meta_data = raw_user_meta_data ||
-  '{"first_name":"Jane","last_name":"Smith"}'::jsonb
-WHERE email = 'jane.smith@yourtenant.onmicrosoft.com';
-<button class="copy-btn" onclick="copyCode('sqlB',this)">Copy</button></div>
-              <div class="info-box">ℹ The email in Supabase Auth <strong>must exactly match</strong> the email in Entra ID — the email check (Entra) and the login (Supabase) both use the same value.</div>
+            <div class="gstep">
+              <h3>Test credentials</h3>
+              <div class="codeblock">Username: john.doe   | Password: Pass@1234
+Username: jane.smith | Password: Pass@5678
+Username: bob.jones  | Password: Pass@9012
+Username: alice.chen | Password: Pass@3456
+Username: tom.wright | Password: Pass@7890</div>
             </div>
+          </div>
 
-            <div class="setup-step">
-              <h3>Step 3 — Get your Supabase API credentials</h3>
-              <p>Go to <strong>Project Settings → API</strong>. Copy your <strong>Project URL</strong> and <strong>anon / public key</strong> into the Supabase config panel below.</p>
+          <!-- WORKER TAB -->
+          <div class="gpanel" id="pWorker" role="tabpanel" aria-labelledby="tWorker">
+            <div class="gstep">
+              <h3>Update your Cloudflare Worker code</h3>
+              <p>The new <strong>worker.js</strong> file (downloaded alongside this SPA) replaces your existing Worker code entirely. It adds two new routes:</p>
+              <ul>
+                <li><strong>writeback-email</strong> — PATCHes the user's <code>otherMails</code> in Entra ID</li>
+                <li><strong>generate-token</strong> — Signs and returns a HS256 JWT with all user claims</li>
+              </ul>
+              <ul>
+                <li>Go to <a href="https://workers.cloudflare.com" target="_blank" rel="noopener">workers.cloudflare.com</a> → your worker → <strong>Edit code</strong></li>
+                <li>Select all (Ctrl+A), delete, paste the new <strong>worker.js</strong> contents</li>
+                <li>Click <strong>Deploy</strong></li>
+              </ul>
             </div>
-
-          </div><!-- /guideSupabase -->
+            <div class="gstep">
+              <h3>Add new environment variable</h3>
+              <p>In Cloudflare: <strong>Workers → your worker → Settings → Variables → Add variable</strong>:</p>
+              <div class="codeblock" id="wvars">JWT_SECRET  →  any long random string, e.g: s3cur3Auth!jwt$2025#secret
+              (mark as Encrypted)
+<button class="cpybtn" onclick="cpyCode('wvars',this)">Copy</button></div>
+              <p style="margin-top:.6rem;">The existing 4 variables (ENTRA_TENANT_ID, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET, ALLOWED_ORIGIN) remain unchanged.</p>
+            </div>
+          </div>
 
         </div>
       </div>
 
-      <!-- ═══ CONFIG: ENTRA ID ═══ -->
-      <div class="config-section" role="region" aria-label="Entra ID configuration">
-        <div class="config-section-header">
-          <h2 class="config-section-title">
-            🔷 Identity Store — Email Check
-            <span class="config-badge badge-entra">Microsoft Entra ID via Cloudflare Worker</span>
+      <!-- ════════════════════════════════
+           CONFIG: ENTRA / WORKER
+      ════════════════════════════════ -->
+      <div class="cfg" role="region" aria-label="Entra ID Worker configuration">
+        <div class="cfg-hdr">
+          <h2 class="cfg-title">🔷 Identity Store — Email Check &amp; Writeback
+            <span class="badge b-entra">Entra ID via Cloudflare Worker</span>
           </h2>
         </div>
-        <div class="config-body">
-          <div class="config-row">
-            <div class="config-field" style="grid-column:1/-1;">
+        <div class="cfg-body">
+          <div class="cfg-row">
+            <div class="cfg-field" style="grid-column:1/-1">
               <label for="workerUrl">Worker Proxy URL</label>
-              <input type="url" id="workerUrl"
-                placeholder="https://secureauth-proxy.your-name.workers.dev"
-                aria-label="Cloudflare Worker proxy URL" autocomplete="off" />
+              <input type="url" id="workerUrl" placeholder="https://secureauth-proxy.your-name.workers.dev"
+                aria-label="Cloudflare Worker URL" autocomplete="off" />
             </div>
           </div>
-          <div class="config-status" aria-live="polite" aria-atomic="true">
-            <span class="status-dot idle" id="entraDot"></span>
-            <span id="entraStatusText" style="font-size:0.68rem;color:var(--text-muted)">Paste your Cloudflare Worker URL to enable Entra ID email check — see setup guide above</span>
+          <div class="cfg-status" aria-live="polite" aria-atomic="true">
+            <span class="sdot2 idle" id="wDot"></span>
+            <span id="wTxt" style="font-size:.68rem;color:var(--muted)">Paste your Cloudflare Worker URL to connect</span>
           </div>
         </div>
       </div>
 
-      <!-- ═══ CONFIG: SUPABASE ═══ -->
-      <div class="config-section" role="region" aria-label="Supabase configuration">
-        <div class="config-section-header">
-          <h2 class="config-section-title">
-            🟢 Authentication Provider — Login
-            <span class="config-badge badge-supabase">Supabase Auth</span>
+      <!-- ════════════════════════════════
+           CONFIG: SUPABASE
+      ════════════════════════════════ -->
+      <div class="cfg" role="region" aria-label="Supabase configuration">
+        <div class="cfg-hdr">
+          <h2 class="cfg-title">🟢 User Credentials Database
+            <span class="badge b-supa">Supabase</span>
           </h2>
         </div>
-        <div class="config-body">
-          <div class="config-row">
-            <div class="config-field">
-              <label for="cfgUrl">Project URL</label>
-              <input type="url" id="cfgUrl" placeholder="https://xxxxxxxxxxxx.supabase.co"
+        <div class="cfg-body">
+          <div class="cfg-row">
+            <div class="cfg-field">
+              <label for="sbUrl">Project URL</label>
+              <input type="url" id="sbUrl" placeholder="https://xxxxxxxxxxxx.supabase.co"
                 aria-label="Supabase project URL" autocomplete="off" />
             </div>
-            <div class="config-field">
-              <label for="cfgKey">Anon Public Key</label>
-              <input type="text" id="cfgKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                aria-label="Supabase anonymous public key" autocomplete="off" />
+            <div class="cfg-field">
+              <label for="sbKey">Anon Public Key</label>
+              <input type="text" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                aria-label="Supabase anon key" autocomplete="off" />
             </div>
           </div>
-          <div class="config-status" aria-live="polite" aria-atomic="true">
-            <span class="status-dot idle" id="cfgDot"></span>
-            <span id="cfgStatusText" style="font-size:0.68rem;color:var(--text-muted)">Enter your Supabase URL and anon key to connect</span>
+          <div class="cfg-status" aria-live="polite" aria-atomic="true">
+            <span class="sdot2 idle" id="sbDot"></span>
+            <span id="sbTxt" style="font-size:.68rem;color:var(--muted)">Enter Supabase URL and anon key</span>
           </div>
         </div>
       </div>
 
-      <!-- ═══ SCREEN 1: Email Check ═══ -->
-      <div class="screen active" id="screen1" role="region" aria-label="Email verification">
+      <!-- ════════════════════════════════
+           SCREEN 1 — Entra Email Check
+      ════════════════════════════════ -->
+      <div class="screen active" id="s1" role="region" aria-label="Email verification">
         <div class="card">
-          <div class="card-header">
-            <p class="card-eyebrow">Step 1 of 3</p>
-            <h1 class="card-title" id="s1heading">Enter your email</h1>
-            <p class="card-subtitle">We'll verify your email exists in the directory before proceeding.</p>
-            <span class="provider-badge entra" aria-label="Verified via Microsoft Entra ID">
-              <span class="provider-dot" aria-hidden="true"></span>
-              Verified via Microsoft Entra ID
-            </span>
+          <div class="card-hdr">
+            <p class="eyebrow">Step 1 of 3</p>
+            <h1 class="card-title" id="h1">Enter your email</h1>
+            <p class="card-sub">We'll verify your email exists in the directory before proceeding.</p>
+            <span class="pbadge entra"><span class="pbadge-dot" aria-hidden="true"></span>Verified via Microsoft Entra ID</span>
           </div>
           <div class="card-body">
-            <div class="alert alert-error" id="emailAlert" role="alert" aria-live="assertive">
-              <em class="alert-icon">✕</em>
-              <span id="emailAlertMsg"></span>
+            <div class="alert a-err" id="e1Alert" role="alert" aria-live="assertive">
+              <em class="aico">✕</em><span id="e1Msg"></span>
             </div>
-            <form id="emailForm" novalidate aria-label="Email check form">
-              <div class="form-group">
-                <label for="emailInput">Email Address</label>
-                <div class="input-wrap">
-                  <input type="email" id="emailInput" name="email" class="form-input"
-                    placeholder="you@yourtenant.onmicrosoft.com"
-                    autocomplete="email" required aria-required="true"
-                    aria-describedby="emailFieldError" />
-                  <span class="input-icon" aria-hidden="true">@</span>
+            <form id="f1" novalidate aria-label="Email check form">
+              <div class="fg">
+                <label for="emailIn">Email Address</label>
+                <div class="iw">
+                  <input type="email" id="emailIn" class="fi" placeholder="you@yourtenant.onmicrosoft.com"
+                    autocomplete="email" required aria-required="true" aria-describedby="emailErr" />
+                  <span class="iicon" aria-hidden="true">@</span>
                 </div>
-                <p class="field-error" id="emailFieldError" role="alert">
-                  <span aria-hidden="true">✕</span> Please enter a valid email address.
-                </p>
+                <p class="ferr" id="emailErr" role="alert"><span aria-hidden="true">✕</span> Please enter a valid email address.</p>
               </div>
-              <button type="submit" class="btn btn-primary" id="emailBtn">
-                <span class="spinner" aria-hidden="true"></span>
-                <span class="btn-label">Check Email</span>
+              <button type="submit" class="btn btn-p" id="btn1">
+                <span class="spin" aria-hidden="true"></span><span class="lbl">Check Email</span>
               </button>
             </form>
           </div>
         </div>
       </div>
 
-      <!-- ═══ SCREEN 2: Login ═══ -->
-      <div class="screen" id="screen2" role="region" aria-label="Login">
+      <!-- ════════════════════════════════
+           SCREEN 2 — Username + Password
+      ════════════════════════════════ -->
+      <div class="screen" id="s2" role="region" aria-label="Login">
         <div class="card">
-          <div class="card-header">
-            <p class="card-eyebrow">Step 2 of 3</p>
-            <h1 class="card-title" id="s2heading">Sign in</h1>
-            <p class="card-subtitle">Email verified in Entra ID. Enter your password to authenticate.</p>
-            <span class="provider-badge supabase" aria-label="Authenticated via Supabase Auth">
-              <span class="provider-dot" aria-hidden="true"></span>
-              Authenticated via Supabase Auth
-            </span>
+          <div class="card-hdr">
+            <p class="eyebrow">Step 2 of 3</p>
+            <h1 class="card-title" id="h2">Sign in</h1>
+            <p class="card-sub">Email verified. Enter your username and password to authenticate.</p>
+            <span class="pbadge supa"><span class="pbadge-dot" aria-hidden="true"></span>Authenticated via Supabase user_credentials</span>
           </div>
           <div class="card-body">
-            <div class="alert alert-info show" id="loginEmailBadge" role="status">
-              <em class="alert-icon">✓</em>
-              <span>Signing in as: <strong id="loginEmailDisplay"></strong></span>
+            <div class="alert a-info show" id="e2Badge" role="status">
+              <em class="aico">✓</em>
+              <span>Entra ID verified: <strong id="e2Email"></strong></span>
             </div>
-            <div class="alert alert-error" id="loginAlert" role="alert" aria-live="assertive">
-              <em class="alert-icon">✕</em>
-              <span id="loginAlertMsg"></span>
+            <div class="alert a-err" id="e2Alert" role="alert" aria-live="assertive">
+              <em class="aico">✕</em><span id="e2Msg"></span>
             </div>
-            <form id="loginForm" novalidate aria-label="Login form">
-              <div class="form-group">
-                <label for="loginEmail">Email Address</label>
-                <div class="input-wrap">
-                  <input type="email" id="loginEmail" class="form-input" readonly
-                    aria-label="Email (pre-filled from Entra ID verification)"
-                    aria-describedby="loginEmailNote" />
-                  <span class="input-icon" aria-hidden="true">@</span>
+            <form id="f2" novalidate aria-label="Login form">
+              <div class="fg">
+                <label for="usernameIn">Username</label>
+                <div class="iw">
+                  <input type="text" id="usernameIn" class="fi" placeholder="john.doe"
+                    autocomplete="username" required aria-required="true" aria-describedby="usernameErr" />
+                  <span class="iicon" aria-hidden="true">⌘</span>
                 </div>
-                <p id="loginEmailNote" style="font-size:0.65rem;color:var(--text-muted);margin-top:0.3rem;">Verified and pre-filled from Entra ID.</p>
+                <p class="ferr" id="usernameErr" role="alert"><span aria-hidden="true">✕</span> Username is required.</p>
               </div>
-              <div class="form-group">
-                <label for="loginPassword">Password</label>
-                <div class="input-wrap">
-                  <input type="password" id="loginPassword" class="form-input"
-                    placeholder="••••••••" autocomplete="current-password"
-                    required aria-required="true" aria-describedby="loginPasswordError" />
-                  <span class="input-icon" aria-hidden="true">⚿</span>
+              <div class="fg">
+                <label for="passwordIn">Password</label>
+                <div class="iw">
+                  <input type="password" id="passwordIn" class="fi" placeholder="••••••••"
+                    autocomplete="current-password" required aria-required="true" aria-describedby="passwordErr" />
+                  <span class="iicon" aria-hidden="true">⚿</span>
                 </div>
-                <p class="field-error" id="loginPasswordError" role="alert">
-                  <span aria-hidden="true">✕</span> Password is required.
-                </p>
+                <p class="ferr" id="passwordErr" role="alert"><span aria-hidden="true">✕</span> Password is required.</p>
               </div>
-              <div style="display:flex;flex-direction:column;gap:0.75rem;">
-                <button type="submit" class="btn btn-primary" id="loginBtn">
-                  <span class="spinner" aria-hidden="true"></span>
-                  <span class="btn-label">Sign In</span>
+              <div style="display:flex;flex-direction:column;gap:.75rem;">
+                <button type="submit" class="btn btn-p" id="btn2">
+                  <span class="spin" aria-hidden="true"></span><span class="lbl">Sign In</span>
                 </button>
-                <button type="button" class="btn btn-ghost" id="backBtn" aria-label="Back to email entry">
-                  ← Back
-                </button>
+                <button type="button" class="btn btn-g" id="backBtn" aria-label="Back to email entry">← Back</button>
               </div>
             </form>
           </div>
         </div>
       </div>
 
-      <!-- ═══ SCREEN 3: Token Display ═══ -->
-      <div class="screen" id="screen3" role="region" aria-label="Authentication token">
-        <div class="token-card">
-          <div class="token-card-header">
+      <!-- ════════════════════════════════
+           SCREEN 3 — Token Display
+      ════════════════════════════════ -->
+      <div class="screen" id="s3" role="region" aria-label="Authentication token">
+
+        <!-- Writeback status bar -->
+        <div class="wb-bar" id="wbBar" role="status" aria-live="polite">
+          <span class="wb-spinner" id="wbSpinner" aria-hidden="true"></span>
+          <span class="wb-check" id="wbCheck" style="display:none" aria-hidden="true">✓</span>
+          <span class="wb-x"     id="wbX"     style="display:none" aria-hidden="true">✕</span>
+          <span id="wbMsg"></span>
+        </div>
+
+        <div class="tcard">
+          <div class="thdr">
             <div>
-              <p class="card-eyebrow" style="margin-bottom:0.3rem;">Step 3 of 3</p>
-              <h1 class="card-title" id="s3heading" style="font-size:1.2rem;">ID Token Received</h1>
+              <p class="eyebrow" style="margin-bottom:.3rem;">Step 3 of 3</p>
+              <h1 class="card-title" id="h3" style="font-size:1.2rem;">ID Token Received</h1>
             </div>
-            <div class="token-success-badge" role="status" aria-label="Authentication successful">
-              <span class="pulse-dot" aria-hidden="true"></span>
-              Authenticated
+            <div class="tbadge" role="status" aria-label="Authentication successful">
+              <span class="pdot" aria-hidden="true"></span>Authenticated
             </div>
           </div>
-          <div class="token-panels">
-            <div class="token-panel">
-              <p class="panel-label">Raw JWT Token</p>
+
+          <div class="tpanels">
+            <!-- Raw JWT -->
+            <div class="tpanel">
+              <p class="plabel">Raw JWT Token</p>
               <div class="jwt-raw" id="jwtRaw" tabindex="0" role="region" aria-label="Raw JWT token">
-                <span class="part-header" id="jwtHeader"></span><span class="part-sep">.</span><span class="part-payload" id="jwtPayload"></span><span class="part-sep">.</span><span class="part-sig" id="jwtSig"></span>
+                <span class="ph" id="jwtH"></span><span class="ps">.</span><span class="pp" id="jwtP"></span><span class="ps">.</span><span class="pg" id="jwtS"></span>
               </div>
-              <p style="margin-top:0.6rem;font-size:0.62rem;color:var(--text-dim);line-height:1.6;">
+              <p style="margin-top:.6rem;font-size:.62rem;color:var(--dim);line-height:1.6;">
                 <span style="color:var(--yellow)">■</span> Header &nbsp;
-                <span style="color:var(--purple-light)">■</span> Payload &nbsp;
+                <span style="color:var(--purple-l)">■</span> Payload &nbsp;
                 <span style="color:var(--green)">■</span> Signature
               </p>
             </div>
-            <div class="token-panel">
-              <p class="panel-label">Decoded Claims</p>
-              <dl class="claims-list" id="claimsList" aria-label="Decoded token claims"></dl>
+            <!-- Decoded claims -->
+            <div class="tpanel">
+              <p class="plabel">Decoded Claims</p>
+              <dl class="claims" id="claims" aria-label="Decoded token claims"></dl>
             </div>
           </div>
-          <div class="token-footer">
-            <p class="token-footer-note">⚠ ID tokens are sensitive — never expose publicly or store in localStorage.</p>
-            <button class="btn btn-ghost" id="signOutBtn"
-              style="width:auto;padding:0.55rem 1.25rem;font-size:0.68rem;"
-              aria-label="Sign out and start over">Sign Out</button>
+
+          <div class="tfooter">
+            <p class="tfnote">⚠ ID tokens are sensitive — never expose publicly or store in localStorage.</p>
+            <button class="btn btn-g" id="soBtn" style="width:auto;padding:.55rem 1.25rem;font-size:.68rem;" aria-label="Sign out">Sign Out</button>
           </div>
         </div>
       </div>
 
     </main>
-  </div>
+  </div><!-- /shell -->
 
   <script>
-  /* ── State ── */
-  let supabaseClient = null;
-  let verifiedEmail  = '';
+  /* ══ State ══ */
+  let supa = null;
+  let verifiedEmail = '';
 
-  /* ── Utilities ── */
+  /* ══ Shortcuts ══ */
   const $ = id => document.getElementById(id);
-  const escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const isEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
-  function showScreen(n) {
-    ['screen1','screen2','screen3'].forEach((id,i) => {
+  /* ══ Screen management ══ */
+  function goScreen(n) {
+    ['s1','s2','s3'].forEach((id,i) => {
       $(id).classList.toggle('active', i+1===n);
       if (i+1===n) { const h=$(id).querySelector('h1'); if(h){h.tabIndex=-1;h.focus();} }
     });
-    for (let i=1;i<=3;i++) {
-      const d=$(`dot${i}`); d.classList.remove('active','done');
-      if(i<n) d.classList.add('done');
-      if(i===n) d.classList.add('active');
+    for(let i=1;i<=3;i++){
+      const d=$(`d${i}`); d.classList.remove('active','done');
+      if(i<n) d.classList.add('done'); if(i===n) d.classList.add('active');
     }
-    const labels=['Email Check','Login','Token Display'];
-    $('stepProgress').setAttribute('aria-valuenow',n);
-    $('stepProgress').setAttribute('aria-label',`Step ${n} of 3: ${labels[n-1]}`);
+    $('stepBar').setAttribute('aria-valuenow',n);
+    $('stepBar').setAttribute('aria-label',`Step ${n} of 3: ${['Email Check','Login','Token'][n-1]}`);
   }
 
-  function setLoading(btn,on){btn.classList.toggle('loading',on);btn.disabled=on;}
-  function showAlert(el,msgEl,msg,show=true){el.classList.toggle('show',show);if(msgEl)msgEl.textContent=msg;}
+  function load(btn,on){btn.classList.toggle('loading',on);btn.disabled=on;}
+  function alert2(el,msgEl,msg,show=true){el.classList.toggle('show',show);if(msgEl)msgEl.textContent=msg;}
 
-  /* ── Setup Guide ── */
-  function switchTab(name) {
-    ['Entra','Supabase'].forEach(t => {
-      $(`tab${t}`).classList.toggle('active', t===name);
-      $(`tab${t}`).setAttribute('aria-selected', String(t===name));
-      $(`guide${t}`).classList.toggle('active', t===name);
+  /* ══ Setup guide ══ */
+  function gTab(name){
+    ['Entra','Supabase','Worker'].forEach(t=>{
+      $(`t${t}`).classList.toggle('active',t===name);
+      $(`t${t}`).setAttribute('aria-selected',String(t===name));
+      $(`p${t}`).classList.toggle('active',t===name);
     });
   }
-  $('setupToggle').addEventListener('click', function() {
-    const open = $('setupBody').classList.toggle('open');
-    this.setAttribute('aria-expanded', String(open));
-    this.querySelector('.chevron').textContent = open ? '▲' : '▼';
+  $('gToggle').addEventListener('click',function(){
+    const open=$('gBody').classList.toggle('open');
+    this.setAttribute('aria-expanded',String(open));
+    this.querySelector('.chev').textContent=open?'▲':'▼';
   });
-  function copyCode(id,btn) {
-    const clone=$(id).cloneNode(true);
-    clone.querySelectorAll('button').forEach(b=>b.remove());
-    navigator.clipboard.writeText(clone.textContent.trim()).then(()=>{
+  function cpyCode(id,btn){
+    const cl=$(id).cloneNode(true); cl.querySelectorAll('button').forEach(b=>b.remove());
+    navigator.clipboard.writeText(cl.textContent.trim()).then(()=>{
       btn.textContent='Copied!';btn.classList.add('copied');
       setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},2000);
     });
   }
 
-  /* ── High Contrast ── */
+  /* ══ High contrast ══ */
   $('hcBtn').addEventListener('click',function(){
     this.setAttribute('aria-pressed',String(document.body.classList.toggle('hc')));
   });
 
-  /* ── Config: Entra ID (Worker URL) ── */
-  let entraTimer;
-  $('workerUrl').addEventListener('input', () => {
-    clearTimeout(entraTimer);
-    entraTimer = setTimeout(() => {
-      const url = $('workerUrl').value.trim();
-      const ok  = url.startsWith('https://') && url.includes('workers.dev');
-      $('entraDot').className = 'status-dot ' + (!url ? 'idle' : ok ? 'connected' : 'disconnected');
-      $('entraStatusText').textContent = !url
-        ? 'Paste your Cloudflare Worker URL to enable Entra ID email check — see setup guide above'
-        : ok ? '✓ Worker URL set — ready for Entra ID email check'
-             : '✕ URL should be a valid workers.dev address (https://name.workers.dev)';
-      $('entraStatusText').style.color = !url ? 'var(--text-muted)' : ok ? 'var(--green)' : 'var(--red)';
-    }, 400);
+  /* ══ Config: Worker URL ══ */
+  let wTimer;
+  $('workerUrl').addEventListener('input',()=>{
+    clearTimeout(wTimer); wTimer=setTimeout(()=>{
+      const u=$('workerUrl').value.trim();
+      const ok=u.startsWith('https://')&&u.includes('workers.dev');
+      $('wDot').className='sdot2 '+(u?(ok?'on':'off'):'idle');
+      $('wTxt').textContent=!u?'Paste your Cloudflare Worker URL to connect':ok?'✓ Worker URL set':'✕ Should be a valid workers.dev URL';
+      $('wTxt').style.color=!u?'var(--muted)':ok?'var(--green)':'var(--red)';
+    },400);
   });
 
-  /* ── Config: Supabase ── */
-  let cfgTimer;
-  ['cfgUrl','cfgKey'].forEach(id => {
-    $(id).addEventListener('input', () => {
-      clearTimeout(cfgTimer);
-      cfgTimer = setTimeout(() => {
-        const url=$('cfgUrl').value.trim(), key=$('cfgKey').value.trim();
-        if (!url||!key) { $('cfgDot').className='status-dot idle'; supabaseClient=null; $('cfgStatusText').textContent='Enter your Supabase URL and anon key to connect'; $('cfgStatusText').style.color='var(--text-muted)'; return; }
-        try {
-          supabaseClient = supabase.createClient(url, key);
-          $('cfgDot').className='status-dot connected';
-          $('cfgStatusText').textContent='✓ Supabase client initialized — ready to authenticate';
-          $('cfgStatusText').style.color='var(--green)';
-        } catch {
-          $('cfgDot').className='status-dot disconnected';
-          $('cfgStatusText').textContent='✕ Invalid Supabase credentials';
-          $('cfgStatusText').style.color='var(--red)';
-          supabaseClient=null;
+  /* ══ Config: Supabase ══ */
+  let sbTimer;
+  ['sbUrl','sbKey'].forEach(id=>{
+    $(id).addEventListener('input',()=>{
+      clearTimeout(sbTimer); sbTimer=setTimeout(()=>{
+        const url=$('sbUrl').value.trim(), key=$('sbKey').value.trim();
+        if(!url||!key){$('sbDot').className='sdot2 idle';supa=null;$('sbTxt').textContent='Enter Supabase URL and anon key';$('sbTxt').style.color='var(--muted)';return;}
+        try{
+          supa=supabase.createClient(url,key);
+          $('sbDot').className='sdot2 on';
+          $('sbTxt').textContent='✓ Supabase connected';
+          $('sbTxt').style.color='var(--green)';
+        }catch{
+          $('sbDot').className='sdot2 off';$('sbTxt').textContent='✕ Invalid credentials';$('sbTxt').style.color='var(--red)';supa=null;
         }
-      }, 500);
+      },500);
     });
   });
 
-  /* ── Entra ID: Check email via Cloudflare Worker proxy ── */
-  async function checkEmailInEntra(email) {
-    const workerUrl = $('workerUrl').value.trim();
-    if (!workerUrl) throw new Error('Please paste your Cloudflare Worker URL into the Entra ID config panel above.');
-    const res = await fetch(workerUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+  /* ══ Worker helper ══ */
+  async function callWorker(action, payload) {
+    const url = $('workerUrl').value.trim();
+    if (!url) throw new Error('Please paste your Cloudflare Worker URL into the config panel above.');
+    const res = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action, ...payload }),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await res.json().catch(()=>({}));
     if (!res.ok) throw new Error(data.error || data.detail || `Worker error (HTTP ${res.status})`);
-    return data.found ? data : null;
+    return data;
   }
 
-  /* ── Screen 1: Email Check ── */
-  $('emailForm').addEventListener('submit', async function(e) {
+  /* ══ SCREEN 1: Entra email check ══ */
+  $('f1').addEventListener('submit', async function(e){
     e.preventDefault();
-    showAlert($('emailAlert'), $('emailAlertMsg'), '', false);
-    $('emailFieldError').classList.remove('show');
-    const email = $('emailInput').value.trim();
-    if (!isEmail(email)) { $('emailFieldError').classList.add('show'); $('emailInput').focus(); return; }
-    const btn = $('emailBtn');
-    setLoading(btn, true);
-    try {
-      const user = await checkEmailInEntra(email);
-      if (!user) {
-        showAlert($('emailAlert'), $('emailAlertMsg'), 'This email address was not found in the directory. Please check for typos or contact your administrator.');
+    alert2($('e1Alert'),$('e1Msg'),'',false);
+    $('emailErr').classList.remove('show');
+    const email=$('emailIn').value.trim();
+    if(!isEmail(email)){$('emailErr').classList.add('show');$('emailIn').focus();return;}
+    const btn=$('btn1'); load(btn,true);
+    try{
+      const r = await callWorker('check-email',{email});
+      if(!r.found){
+        alert2($('e1Alert'),$('e1Msg'),'This email address was not found in the directory. Please check for typos or contact your administrator.');
       } else {
-        verifiedEmail = email;
-        $('loginEmail').value = email;
-        $('loginEmailDisplay').textContent = email;
-        $('loginPassword').value = '';
-        showAlert($('loginAlert'), $('loginAlertMsg'), '', false);
-        showScreen(2);
-        setTimeout(() => $('loginPassword').focus(), 100);
+        verifiedEmail=email;
+        $('e2Email').textContent=email;
+        $('usernameIn').value='';
+        $('passwordIn').value='';
+        alert2($('e2Alert'),$('e2Msg'),'',false);
+        goScreen(2);
+        setTimeout(()=>$('usernameIn').focus(),100);
       }
-    } catch(err) {
-      showAlert($('emailAlert'), $('emailAlertMsg'), err.message || 'Unexpected error during Entra ID check.');
-    } finally {
-      setLoading(btn, false);
-    }
+    }catch(err){alert2($('e1Alert'),$('e1Msg'),err.message);}
+    finally{load(btn,false);}
   });
 
-  /* ── Screen 2: Login ── */
-  $('backBtn').addEventListener('click', () => { showAlert($('loginAlert'),$('loginAlertMsg'),'',false); showScreen(1); $('emailInput').focus(); });
+  /* ══ SCREEN 2: Username + password vs Supabase table ══ */
+  $('backBtn').addEventListener('click',()=>{
+    alert2($('e2Alert'),$('e2Msg'),'',false);
+    goScreen(1); $('emailIn').focus();
+  });
 
-  $('loginForm').addEventListener('submit', async function(e) {
+  $('f2').addEventListener('submit', async function(e){
     e.preventDefault();
-    showAlert($('loginAlert'), $('loginAlertMsg'), '', false);
-    $('loginPasswordError').classList.remove('show');
-    const pw = $('loginPassword').value;
-    if (!pw) { $('loginPasswordError').classList.add('show'); $('loginPassword').focus(); return; }
-    if (!supabaseClient) { showAlert($('loginAlert'), $('loginAlertMsg'), 'Please configure your Supabase credentials above.'); return; }
-    const btn = $('loginBtn');
-    setLoading(btn, true);
-    try {
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email: verifiedEmail, password: pw });
-      if (error) throw error;
-      displayToken(data.session.access_token, data.user);
-      showScreen(3);
-    } catch(err) {
-      const m = err.message||'';
-      showAlert($('loginAlert'), $('loginAlertMsg'), m.toLowerCase().includes('invalid') ? 'Incorrect password. Please try again.' : `Authentication error: ${m}`);
-    } finally {
-      setLoading(btn, false);
-    }
+    alert2($('e2Alert'),$('e2Msg'),'',false);
+    $('usernameErr').classList.remove('show');
+    $('passwordErr').classList.remove('show');
+
+    const username=$('usernameIn').value.trim();
+    const password=$('passwordIn').value;
+    if(!username){$('usernameErr').classList.add('show');$('usernameIn').focus();return;}
+    if(!password){$('passwordErr').classList.add('show');$('passwordIn').focus();return;}
+    if(!supa){alert2($('e2Alert'),$('e2Msg'),'Please configure your Supabase credentials above.');return;}
+
+    const btn=$('btn2'); load(btn,true);
+    try{
+      // Query user_credentials table
+      const {data, error} = await supa
+        .from('user_credentials')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password)
+        .maybeSingle();
+
+      if(error) throw error;
+      if(!data){
+        alert2($('e2Alert'),$('e2Msg'),'Invalid username or password. Please try again.');
+        return;
+      }
+
+      // Authentication successful — run writeback + token generation in parallel
+      goScreen(3);
+      await postLoginActions(data);
+
+    }catch(err){
+      alert2($('e2Alert'),$('e2Msg'),err.message||'Authentication error. Please try again.');
+    }finally{load(btn,false);}
   });
 
-  /* ── Screen 3: Token Display ── */
-  function decodeJWT(tok) {
-    const p = tok.split('.');
-    if (p.length!==3) return null;
-    try {
-      const d = s => JSON.parse(atob(s.replace(/-/g,'+').replace(/_/g,'/')+'=='.slice(0,(4-s.length%4)%4)));
-      return { header:d(p[0]), payload:d(p[1]), raw:{h:p[0],p:p[1],s:p[2]} };
-    } catch { return null; }
+  /* ══ Post-login: writeback + generate token ══ */
+  async function postLoginActions(userData) {
+    const wbBar=$('wbBar'), wbMsg=$('wbMsg');
+    const wbSpin=$('wbSpinner'), wbCheck=$('wbCheck'), wbX=$('wbX');
+
+    // Show writeback bar
+    wbBar.classList.add('show');
+    wbBar.className='wb-bar show';
+    wbSpin.style.display='';wbCheck.style.display='none';wbX.style.display='none';
+    wbMsg.textContent=`Writing personal email to Entra ID profile...`;
+
+    let writebackOk = false;
+    try{
+      await callWorker('writeback-email',{
+        entraEmail:    verifiedEmail,
+        personalEmail: userData.personal_email,
+      });
+      writebackOk=true;
+      wbSpin.style.display='none';wbCheck.style.display='';
+      wbMsg.textContent=`✓ Personal email written to Entra ID otherMails successfully`;
+      wbBar.style.borderColor='rgba(52,211,153,.4)';wbBar.style.background='rgba(52,211,153,.05)';
+      $('wbMsg').style.color='var(--green)';
+    }catch(err){
+      wbSpin.style.display='none';wbX.style.display='';
+      wbMsg.textContent=`Entra writeback failed: ${err.message}`;
+      wbBar.style.borderColor='rgba(248,113,113,.4)';wbBar.style.background='rgba(248,113,113,.05)';
+      $('wbMsg').style.color='var(--red)';
+    }
+
+    // Generate JWT regardless of writeback result
+    try{
+      const {token} = await callWorker('generate-token',{
+        user:{
+          username:        userData.username,
+          firstName:       userData.first_name,
+          lastName:        userData.last_name,
+          identityStrength:userData.identity_strength,
+          personalEmail:   userData.personal_email,
+          entraEmail:      verifiedEmail,
+        }
+      });
+      renderToken(token, userData, writebackOk);
+    }catch(err){
+      // Show error in token area
+      $('claims').innerHTML=`<div class="crow"><dt class="ckey">Error</dt><dd class="cval" style="color:var(--red)">${esc(err.message)}</dd></div>`;
+    }
   }
-  function fmtTime(u) {
-    if (!u) return 'N/A';
+
+  /* ══ SCREEN 3: Render JWT ══ */
+  function decodeJWT(tok){
+    const p=tok.split('.');
+    if(p.length!==3)return null;
+    try{
+      const d=s=>JSON.parse(atob(s.replace(/-/g,'+').replace(/_/g,'/')+'=='.slice(0,(4-s.length%4)%4)));
+      return{header:d(p[0]),payload:d(p[1]),raw:{h:p[0],p:p[1],s:p[2]}};
+    }catch{return null;}
+  }
+  function fmtTime(u){
+    if(!u)return'N/A';
     return new Date(u*1000).toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',timeZoneName:'short'});
   }
-  function displayToken(tok, user) {
-    const dec = decodeJWT(tok); if (!dec) return;
-    const p = dec.payload, meta = user.user_metadata||{};
-    $('jwtHeader').textContent  = dec.raw.h;
-    $('jwtPayload').textContent = dec.raw.p;
-    $('jwtSig').textContent     = dec.raw.s;
-    const claims = [
-      {key:'Auth Result',      value:'SUCCESS',                                              cls:'success-val'},
-      {key:'First Name',       value:meta.first_name||'N/A'},
-      {key:'Last Name',        value:meta.last_name ||'N/A'},
-      {key:'Email',            value:p.email||user.email||'N/A'},
-      {key:'Audience (aud)',   value:Array.isArray(p.aud)?p.aud.join(', '):(p.aud||'N/A')},
-      {key:'Issuer (iss)',     value:p.iss ||'N/A', cls:'muted'},
-      {key:'Subject (sub)',    value:p.sub ||user.id||'N/A', cls:'muted'},
-      {key:'Role',             value:p.role||'N/A'},
-      {key:'Issued At (iat)',  value:fmtTime(p.iat)},
-      {key:'Expires At (exp)', value:fmtTime(p.exp)},
+  function strengthClass(v){
+    if(!v)return'mu';
+    const s=v.toLowerCase();
+    return s==='high'?'hi':s==='medium'?'me':s==='low'?'lo':'mu';
+  }
+
+  function renderToken(rawJwt, userData, writebackOk){
+    const dec=decodeJWT(rawJwt); if(!dec)return;
+    const p=dec.payload;
+
+    // Raw JWT
+    $('jwtH').textContent=dec.raw.h;
+    $('jwtP').textContent=dec.raw.p;
+    $('jwtS').textContent=dec.raw.s;
+
+    // Claims
+    const claims=[
+      {key:'Auth Result',       value:'SUCCESS',                      cls:'ok'},
+      {key:'First Name',        value:userData.first_name||p.first_name||'N/A'},
+      {key:'Last Name',         value:userData.last_name ||p.last_name ||'N/A'},
+      {key:'Username',          value:p.sub||'N/A'},
+      {key:'Entra Email',       value:p.entra_email||verifiedEmail||'N/A'},
+      {key:'Personal Email',    value:p.personal_email||'N/A'},
+      {key:'Identity Strength', value:p.identity_strength||'N/A', cls:strengthClass(p.identity_strength)},
+      {key:'Entra Writeback',   value:writebackOk?'otherMails updated ✓':'Failed — see status bar', cls:writebackOk?'ok':'lo'},
+      {key:'Audience (aud)',    value:Array.isArray(p.aud)?p.aud.join(', '):(p.aud||'N/A')},
+      {key:'Issuer (iss)',      value:p.iss||'N/A',  cls:'mu'},
+      {key:'Subject (sub)',     value:p.sub||'N/A',  cls:'mu'},
+      {key:'Issued At (iat)',   value:fmtTime(p.iat)},
+      {key:'Expires At (exp)',  value:fmtTime(p.exp)},
     ];
-    const list = $('claimsList'); list.innerHTML='';
-    claims.forEach(({key,value,cls}) => {
-      const row=document.createElement('div'); row.className='claim-row';
-      row.innerHTML=`<dt class="claim-key">${escHtml(key)}</dt><dd class="claim-value ${cls||''}">${escHtml(value)}</dd>`;
+
+    const list=$('claims'); list.innerHTML='';
+    claims.forEach(({key,value,cls})=>{
+      const row=document.createElement('div'); row.className='crow';
+      row.innerHTML=`<dt class="ckey">${esc(key)}</dt><dd class="cval ${cls||''}">${esc(String(value))}</dd>`;
       list.appendChild(row);
     });
   }
 
-  /* ── Sign Out ── */
-  $('signOutBtn').addEventListener('click', async () => {
-    if(supabaseClient) await supabaseClient.auth.signOut().catch(()=>{});
-    verifiedEmail=''; $('emailInput').value=''; $('loginPassword').value='';
-    showAlert($('emailAlert'),$('emailAlertMsg'),'',false);
-    showScreen(1); $('emailInput').focus();
+  /* ══ Sign out ══ */
+  $('soBtn').addEventListener('click',()=>{
+    verifiedEmail='';
+    $('emailIn').value='';
+    $('usernameIn').value='';
+    $('passwordIn').value='';
+    $('wbBar').classList.remove('show');
+    alert2($('e1Alert'),$('e1Msg'),'',false);
+    goScreen(1); $('emailIn').focus();
   });
 
-  /* ── Keyboard: Escape to go back ── */
-  document.addEventListener('keydown', e => {
-    if(e.key==='Escape' && $('screen2').classList.contains('active')) $('backBtn').click();
+  /* ══ Escape to go back ══ */
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&$('s2').classList.contains('active')) $('backBtn').click();
   });
 
-  showScreen(1);
-  $('emailInput').focus();
+  goScreen(1);
+  $('emailIn').focus();
   </script>
 </body>
 </html>
