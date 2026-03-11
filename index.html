@@ -11,13 +11,13 @@
 
   <style>
     :root {
-      --bg:#08070f; --bg2:#0f0d1a; --bg3:#171426; --bg4:#1e1a34;
-      --border:rgba(120,90,220,0.18); --border-h:rgba(160,120,255,0.4);
-      --purple:#7c5ce0; --purple-l:#a78bfa; --glow:rgba(124,92,224,0.3);
-      --accent:#b06aff; --green:#34d399; --red:#f87171;
+      --bg:#0a0610; --bg2:#110919; --bg3:#190d24; --bg4:#22103a;
+      --border:rgba(106,40,117,0.25); --border-h:rgba(163,85,184,0.45);
+      --purple:#6A2875; --purple-l:#a355b8; --glow:rgba(106,40,117,0.3);
+      --accent:#c278d8; --green:#34d399; --red:#f87171;
       --yellow:#fbbf24; --blue:#60a5fa; --orange:#fb923c;
-      --text:#e2dff5; --muted:#7a708e; --dim:#4a4460;
-      --focus:#c4b5fd; --r:6px; --rl:12px;
+      --text:#f0e6f6; --muted:#8a6e94; --dim:#4a2e54;
+      --focus:#d9a8e8; --r:6px; --rl:12px;
       --mono:'IBM Plex Mono',monospace; --sans:'Syne',sans-serif;
     }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -27,12 +27,12 @@
     .skip-link:focus{top:1rem;}
     :focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:var(--r);}
     :focus:not(:focus-visible){outline:none;}
-    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(124,92,224,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(124,92,224,.04) 1px,transparent 1px);background-size:40px 40px;}
-    body::after{content:'';position:fixed;width:600px;height:600px;border-radius:50%;background:radial-gradient(ellipse,rgba(124,92,224,.12) 0%,transparent 70%);top:-200px;right:-100px;z-index:0;pointer-events:none;}
+    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(106,40,117,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(106,40,117,.05) 1px,transparent 1px);background-size:40px 40px;}
+    body::after{content:'';position:fixed;width:600px;height:600px;border-radius:50%;background:radial-gradient(ellipse,rgba(106,40,117,.18) 0%,transparent 70%);top:-200px;right:-100px;z-index:0;pointer-events:none;}
     .shell{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;}
 
     /* ── Top bar ── */
-    .topbar{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 2rem;border-bottom:1px solid var(--border);background:rgba(8,7,15,.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50;}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 2rem;border-bottom:1px solid var(--border);background:rgba(10,6,16,.88);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50;}
     .brand{display:flex;align-items:center;gap:.6rem;font-family:var(--sans);font-size:1rem;font-weight:700;color:var(--text);text-decoration:none;}
     .brand-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--purple),var(--accent));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#fff;}
     .topbar-r{display:flex;align-items:center;gap:1rem;}
@@ -179,10 +179,10 @@
 
     /* ── High contrast ── */
     body.hc{
-      --bg:#000;--bg2:#0a0a0a;--bg3:#111;--bg4:#1a1a1a;
-      --border:rgba(200,170,255,.4);--purple:#b090ff;--purple-l:#d0b8ff;--accent:#e0c0ff;
+      --bg:#000;--bg2:#0a0005;--bg3:#110010;--bg4:#1a0020;
+      --border:rgba(220,160,255,.5);--purple:#c060e0;--purple-l:#e090ff;--accent:#f0b0ff;
       --green:#00ff88;--red:#ff6060;--yellow:#ffdd00;--blue:#80c0ff;--orange:#ffaa44;
-      --text:#fff;--muted:#ccc;--dim:#888;--focus:#ffff00;
+      --text:#fff;--muted:#ddc0ee;--dim:#886699;--focus:#ffff00;
     }
 
     ::-webkit-scrollbar{width:4px;height:4px;}
@@ -281,11 +281,11 @@ CREATE POLICY "allow_anon_select"
 INSERT INTO public.user_credentials
   (username, password, first_name, last_name, identity_strength, personal_email)
 VALUES
-  ('john.doe',    'Pass@1234', 'John',  'Doe',    'High',   'john.doe@gmail.com'),
-  ('jane.smith',  'Pass@5678', 'Jane',  'Smith',  'Medium', 'jane.smith@gmail.com'),
-  ('bob.jones',   'Pass@9012', 'Bob',   'Jones',  'Low',    'bob.jones@hotmail.com'),
-  ('alice.chen',  'Pass@3456', 'Alice', 'Chen',   'High',   'alice.chen@outlook.com'),
-  ('tom.wright',  'Pass@7890', 'Tom',   'Wright', 'Medium', 'tom.wright@yahoo.com')
+  ('john.doe',    'Pass@1234', 'John',  'Doe',    'High',   '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="bbd1d4d3d595dfd4defbdcd6dad2d795d8d4d6">[email&#160;protected]</a>'),
+  ('jane.smith',  'Pass@5678', 'Jane',  'Smith',  'Medium', '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="89e3e8e7eca7fae4e0fde1c9eee4e8e0e5a7eae6e4">[email&#160;protected]</a>'),
+  ('bob.jones',   'Pass@9012', 'Bob',   'Jones',  'Low',    '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d6b4b9b4f8bcb9b8b3a596beb9a2bbb7bfbaf8b5b9bb">[email&#160;protected]</a>'),
+  ('alice.chen',  'Pass@3456', 'Alice', 'Chen',   'High',   '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="492825202a2c672a212c2709263c3d25262622672a2624">[email&#160;protected]</a>'),
+  ('tom.wright',  'Pass@7890', 'Tom',   'Wright', 'Medium', '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="384c5755164f4a515f504c784159505757165b5755">[email&#160;protected]</a>')
 ON CONFLICT DO NOTHING;
 <button class="cpybtn" onclick="cpyCode('sqlCreds',this)">Copy</button></div>
               <div class="ibox">ℹ Passwords are stored as plain text here for demo purposes. In production, use a hashed approach (e.g. bcrypt) or delegate authentication entirely to an identity provider.</div>
@@ -517,7 +517,7 @@ Username: tom.wright | Password: Pass@7890</div>
     </main>
   </div><!-- /shell -->
 
-  <script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
   /* ══ State ══ */
   let supa = null;
   let verifiedEmail = '';
@@ -778,30 +778,4 @@ Username: tom.wright | Password: Pass@7890</div>
 
     const list=$('claims'); list.innerHTML='';
     claims.forEach(({key,value,cls})=>{
-      const row=document.createElement('div'); row.className='crow';
-      row.innerHTML=`<dt class="ckey">${esc(key)}</dt><dd class="cval ${cls||''}">${esc(String(value))}</dd>`;
-      list.appendChild(row);
-    });
-  }
-
-  /* ══ Sign out ══ */
-  $('soBtn').addEventListener('click',()=>{
-    verifiedEmail='';
-    $('emailIn').value='';
-    $('usernameIn').value='';
-    $('passwordIn').value='';
-    $('wbBar').classList.remove('show');
-    alert2($('e1Alert'),$('e1Msg'),'',false);
-    goScreen(1); $('emailIn').focus();
-  });
-
-  /* ══ Escape to go back ══ */
-  document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'&&$('s2').classList.contains('active')) $('backBtn').click();
-  });
-
-  goScreen(1);
-  $('emailIn').focus();
-  </script>
-</body>
-</html>
+      const row=document.createElement('div'); row.classN
