@@ -450,11 +450,11 @@ CREATE POLICY "allow_anon_select" ON public.user_credentials FOR SELECT USING (t
 INSERT INTO public.user_credentials
   (username, password, first_name, last_name, identity_strength, personal_email)
 VALUES
-  ('john.doe',   'Pass@1234', 'John',  'Doe',    'High',   'john.doe@gmail.com'),
-  ('jane.smith', 'Pass@5678', 'Jane',  'Smith',  'Medium', 'jane.smith@gmail.com'),
-  ('bob.jones',  'Pass@9012', 'Bob',   'Jones',  'Low',    'bob.jones@hotmail.com'),
-  ('alice.chen', 'Pass@3456', 'Alice', 'Chen',   'High',   'alice.chen@outlook.com'),
-  ('tom.wright', 'Pass@7890', 'Tom',   'Wright', 'Medium', 'tom.wright@yahoo.com')
+  ('john.doe',   'Pass@1234', 'John',  'Doe',    'High',   '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e58f8a8d8bcb818a80a58288848c89cb868a88">[email&#160;protected]</a>'),
+  ('jane.smith', 'Pass@5678', 'Jane',  'Smith',  'Medium', '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ee848f808bc09d83879a86ae89838f8782c08d8183">[email&#160;protected]</a>'),
+  ('bob.jones',  'Pass@9012', 'Bob',   'Jones',  'Low',    '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="bad8d5d894d0d5d4dfc9fad2d5ced7dbd3d694d9d5d7">[email&#160;protected]</a>'),
+  ('alice.chen', 'Pass@3456', 'Alice', 'Chen',   'High',   '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1a7b7673797f3479727f745a756f6e7675757134797577">[email&#160;protected]</a>'),
+  ('tom.wright', 'Pass@7890', 'Tom',   'Wright', 'Medium', '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f682999bd881849f919e82b68f979e9999d895999b">[email&#160;protected]</a>')
 ON CONFLICT DO NOTHING;
 <button class="cpybtn" onclick="cpyCode('sqlCreds',this)">Copy</button></div>
                 </div>
@@ -490,7 +490,7 @@ ON CONFLICT DO NOTHING;
                 <div class="gstep">
                   <h3>Step 3 — Existing User username matching</h3>
                   <p>After SSO the app extracts the username from the Entra UPN — the part before the <code>@</code> symbol. This must match a <strong>username</strong> in your <code>user_credentials</code> table.</p>
-                  <div class="ibox">ℹ Example: SSO returns UPN <code>john.doe@yourtenant.onmicrosoft.com</code> → username extracted as <code>john.doe</code> → looked up in user_credentials table.</div>
+                  <div class="ibox">ℹ Example: SSO returns UPN <code><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="cea4a1a6a0e0aaa1ab8eb7a1bbbcbaaba0afa0bae0a1a0a3a7adbca1bda1a8bae0ada1a3">[email&#160;protected]</a></code> → username extracted as <code>john.doe</code> → looked up in user_credentials table.</div>
                 </div>
               </div>
 
@@ -819,7 +819,7 @@ ON CONFLICT DO NOTHING;
     </main>
   </div><!-- /shell -->
 
-  <script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
   /* ══════════════════════════════════════
      State
   ══════════════════════════════════════ */
@@ -1074,8 +1074,17 @@ ON CONFLICT DO NOTHING;
      EXISTING USER FLOW
   ══════════════════════════════════════ */
   async function startExistingUser() {
-    if(!msalInstance){
-      alert('Please fill in your MSAL Tenant ID and Client ID in the configuration panel above first.');
+    // Always re-read fields at click time — don't rely on debounce having fired
+    const tid = $('msalTenant').value.trim();
+    const cid = $('msalClient').value.trim();
+    if (!tid || !cid) {
+      alert('Please fill in your MSAL Tenant ID and Client ID in the MSAL SSO Configuration panel above, then try again.');
+      return;
+    }
+    // Re-initialise MSAL with current values every time (safe and ensures latest values are used)
+    initMsal(tid, cid);
+    if (!msalInstance) {
+      alert('MSAL could not be initialised. Please check your Tenant ID and Client ID and try again.');
       return;
     }
     setFlow('eu');
@@ -1232,23 +1241,4 @@ ON CONFLICT DO NOTHING;
   ══════════════════════════════════════ */
   $('soBtn').addEventListener('click',()=>{
     verifiedEmail='';currentFlow='';
-    ['nuEmailIn','nuUsername','nuPassword','euPassword'].forEach(id=>$(id).value='');
-    $('wbBar').classList.remove('show');
-    goHome();
-  });
-
-  /* ══════════════════════════════════════
-     Keyboard: Escape → home
-  ══════════════════════════════════════ */
-  document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'&&currentScreen!=='sHome') goHome();
-  });
-
-  /* ══════════════════════════════════════
-     Init
-  ══════════════════════════════════════ */
-  $('configPanels').style.display='';
-  goScreen('sHome');
-  </script>
-</body>
-</html>
+    
