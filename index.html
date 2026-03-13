@@ -860,39 +860,38 @@ ON CONFLICT DO NOTHING;
                   <em class="aico">✕</em><span id="tapMsg"></span>
                 </div>
 
-                <!-- TAP result (hidden until generated) -->
+                <!-- TAP result (shown after generation) -->
                 <div id="tapResult" style="display:none">
                   <div class="tap-pass">
+                    <p style="font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Your Access Code</p>
                     <div class="tap-code" id="tapCode" aria-label="Temporary Access Pass code"></div>
                     <div class="tap-meta" id="tapMeta"></div>
-                    <button class="tap-copy" id="tapCopyBtn" onclick="copyTap()" aria-label="Copy TAP to clipboard">Copy</button>
+                    <button class="tap-copy" id="tapCopyBtn" onclick="copyTap()" aria-label="Copy TAP to clipboard">📋 Copy Code</button>
                   </div>
-                  <div class="alert a-ok show" role="status">
-                    <em class="aico">✓</em><span>TAP generated and active in Entra ID. Use it within the validity window.</span>
+                  <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:1rem;margin-top:.85rem;">
+                    <p style="font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--yellow);margin-bottom:.6rem;">How to use your TAP</p>
+                    <ol style="padding-left:1.1rem;font-size:.7rem;color:var(--muted);line-height:2.2;">
+                      <li>Go to <strong style="color:var(--text)">aka.ms/mysecurityinfo</strong></li>
+                      <li>Click <strong style="color:var(--text)">+ Add sign-in method</strong></li>
+                      <li>Select <strong style="color:var(--text)">Temporary Access Pass</strong></li>
+                      <li>Enter the code shown above when prompted</li>
+                      <li>You can then register your security key or authenticator app</li>
+                    </ol>
                   </div>
+                  <button class="btn btn-yellow" style="margin-top:.85rem;" id="btnTap" onclick="generateTap()" aria-label="Request a new Temporary Access Pass">
+                    <span class="spin" aria-hidden="true"></span><span class="lbl">Request New TAP</span>
+                  </button>
                 </div>
 
-                <!-- TAP config -->
-                <div id="tapConfig">
-                  <div class="fg" style="margin-bottom:1rem;">
-                    <label for="tapLifetime" style="font-size:.62rem;letter-spacing:.15em;text-transform:uppercase;color:var(--purple-l);display:block;margin-bottom:.35rem;">Lifetime (minutes)</label>
-                    <select id="tapLifetime" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:.7rem .9rem;font-family:var(--mono);font-size:.75rem;border-radius:var(--r);">
-                      <option value="15">15 minutes</option>
-                      <option value="30">30 minutes</option>
-                      <option value="60" selected>60 minutes</option>
-                      <option value="120">2 hours</option>
-                      <option value="480">8 hours</option>
-                    </select>
-                  </div>
-                  <div class="fg" style="margin-bottom:1.25rem;display:flex;align-items:center;gap:.75rem;">
-                    <input type="checkbox" id="tapOnce" checked style="accent-color:var(--yellow);width:14px;height:14px;" />
-                    <label for="tapOnce" style="font-size:.72rem;color:var(--muted);cursor:pointer;">Usable once only (recommended)</label>
-                  </div>
+                <!-- Initial request button -->
+                <div id="tapRequest">
+                  <p style="font-size:.72rem;color:var(--muted);line-height:1.8;margin-bottom:1.25rem;">
+                    A one-time passcode valid for <strong style="color:var(--text)">60 minutes</strong> will be generated for your account. Use it to sign in and register a new authentication method.
+                  </p>
+                  <button class="btn btn-yellow" id="btnTap" onclick="generateTap()" aria-label="Request Temporary Access Pass">
+                    <span class="spin" aria-hidden="true"></span><span class="lbl">Request TAP</span>
+                  </button>
                 </div>
-
-                <button class="btn btn-yellow" id="btnTap" onclick="generateTap()" aria-label="Generate Temporary Access Pass">
-                  <span class="spin" aria-hidden="true"></span><span class="lbl">Generate TAP</span>
-                </button>
               </div>
             </div>
 
@@ -1341,39 +1340,38 @@ ON CONFLICT DO NOTHING;
   ══════════════════════════════════════ */
   function resetTapUi(){
     $('tapResult').style.display='none';
-    $('tapConfig').style.display='';
+    $('tapRequest').style.display='';
     $('tapAlert').style.display='none';
-    const btn=$('btnTap'); btn.classList.remove('loading'); btn.disabled=false;
-    $('btnTap').querySelector('.lbl').textContent='Generate TAP';
+    const btn=$('btnTap'); if(btn){btn.classList.remove('loading');btn.disabled=false;}
   }
 
   async function generateTap(){
-    if(!currentUser){return;}
-    const btn=$('btnTap'); load(btn,true);
+    if(!currentUser) return;
+    // There are two btnTap buttons (one in tapRequest, one in tapResult)
+    // Disable both to prevent double-clicks
+    document.querySelectorAll('#btnTap').forEach(b=>{ b.classList.add('loading'); b.disabled=true; });
     $('tapAlert').style.display='none';
     try{
-      const lifetime  = parseInt($('tapLifetime').value);
-      const isOnce    = $('tapOnce').checked;
-      const result    = await callWorker('generate-tap',{
-        entraEmail:       verifiedEmail,
-        lifetimeInMinutes: lifetime,
-        isUsableOnce:      isOnce,
+      const result = await callWorker('generate-tap',{
+        entraEmail:        verifiedEmail,
+        lifetimeInMinutes: 60,
+        isUsableOnce:      true,
       });
 
-      // Show TAP
       $('tapCode').textContent = result.temporaryAccessPass;
-      const start   = result.startDateTime ? new Date(result.startDateTime).toLocaleTimeString() : 'Now';
-      const expires = result.startDateTime
-        ? new Date(new Date(result.startDateTime).getTime() + result.lifetimeInMinutes*60000).toLocaleTimeString()
-        : `${result.lifetimeInMinutes} min from now`;
-      $('tapMeta').innerHTML = `Valid from: ${start}<br>Expires: ${expires}<br>One-time use: ${result.isUsableOnce ? 'Yes' : 'No'}`;
-      $('tapConfig').style.display='none';
+      const expiry = result.startDateTime
+        ? new Date(new Date(result.startDateTime).getTime() + 60*60000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+        : '60 minutes from now';
+      $('tapMeta').innerHTML = `Valid for <strong>60 minutes</strong> &nbsp;·&nbsp; Expires at <strong>${expiry}</strong><br>Single use only — code becomes invalid after first use`;
+
+      $('tapRequest').style.display='none';
       $('tapResult').style.display='';
-      $('btnTap').querySelector('.lbl').textContent='Regenerate TAP';
     }catch(err){
       $('tapAlert').style.display='flex';
       $('tapMsg').textContent=err.message;
-    }finally{ load(btn,false); }
+    }finally{
+      document.querySelectorAll('#btnTap').forEach(b=>{ b.classList.remove('loading'); b.disabled=false; });
+    }
   }
 
   function copyTap(){
