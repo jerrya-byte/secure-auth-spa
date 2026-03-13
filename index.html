@@ -1241,4 +1241,32 @@ ON CONFLICT DO NOTHING;
   ══════════════════════════════════════ */
   $('soBtn').addEventListener('click',()=>{
     verifiedEmail='';currentFlow='';
-    
+    ['nuEmailIn','nuUsername','nuPassword','euPassword'].forEach(id=>$(id).value='');
+    $('wbBar').classList.remove('show');
+    goHome();
+  });
+
+  /* ══════════════════════════════════════
+     Keyboard: Escape → home
+  ══════════════════════════════════════ */
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&currentScreen!=='sHome') goHome();
+  });
+
+  /* ══════════════════════════════════════
+     Expose functions globally (fixes onclick scope issues)
+  ══════════════════════════════════════ */
+  window.startNewUser      = startNewUser;
+  window.startExistingUser = startExistingUser;
+  window.goHome            = goHome;
+  window.gTab              = gTab;
+  window.cpyCode           = cpyCode;
+
+  /* ══════════════════════════════════════
+     Init
+  ══════════════════════════════════════ */
+  $('configPanels').style.display='';
+  goScreen('sHome');
+  </script>
+</body>
+</html>
