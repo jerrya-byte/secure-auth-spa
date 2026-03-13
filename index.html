@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 
   <style>
     :root {
@@ -23,39 +24,89 @@
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     html{font-size:16px;scroll-behavior:smooth;}
     body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden;line-height:1.6;}
+
     .skip-link{position:fixed;top:-100px;left:1rem;z-index:9999;background:var(--focus);color:#000;padding:.6rem 1.2rem;border-radius:var(--r);font-size:.8rem;text-decoration:none;transition:top .2s;}
     .skip-link:focus{top:1rem;}
     :focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:var(--r);}
     :focus:not(:focus-visible){outline:none;}
-    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(106,40,117,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(106,40,117,.05) 1px,transparent 1px);background-size:40px 40px;}
-    body::after{content:'';position:fixed;width:600px;height:600px;border-radius:50%;background:radial-gradient(ellipse,rgba(106,40,117,.18) 0%,transparent 70%);top:-200px;right:-100px;z-index:0;pointer-events:none;}
+
+    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+      background-image:linear-gradient(rgba(106,40,117,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(106,40,117,.05) 1px,transparent 1px);
+      background-size:40px 40px;}
+    body::after{content:'';position:fixed;width:700px;height:700px;border-radius:50%;
+      background:radial-gradient(ellipse,rgba(106,40,117,.18) 0%,transparent 70%);
+      top:-250px;right:-150px;z-index:0;pointer-events:none;}
+
     .shell{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;}
 
-    /* ── Top bar ── */
-    .topbar{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 2rem;border-bottom:1px solid var(--border);background:rgba(10,6,16,.88);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50;}
-    .brand{display:flex;align-items:center;gap:.6rem;font-family:var(--sans);font-size:1rem;font-weight:700;color:var(--text);text-decoration:none;}
-    .brand-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--purple),var(--accent));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#fff;}
+    /* ── Topbar ── */
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 2rem;
+      border-bottom:1px solid var(--border);background:rgba(10,6,16,.88);
+      backdrop-filter:blur(12px);position:sticky;top:0;z-index:50;}
+    .brand{display:flex;align-items:center;gap:.6rem;font-family:var(--sans);font-size:1rem;
+      font-weight:700;color:var(--text);text-decoration:none;cursor:pointer;}
+    .brand-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--purple),var(--accent));
+      border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#fff;}
     .topbar-r{display:flex;align-items:center;gap:1rem;}
-    .steps{display:flex;align-items:center;gap:.4rem;}
+
+    /* Step dots */
+    .steps{display:flex;align-items:center;gap:.5rem;opacity:0;transition:opacity .3s;}
+    .steps.visible{opacity:1;}
     .sdot{width:8px;height:8px;border-radius:50%;background:var(--border);border:1px solid var(--border);transition:all .3s;}
     .sdot.active{background:var(--accent);border-color:var(--accent);box-shadow:0 0 8px var(--accent);}
     .sdot.done{background:var(--green);border-color:var(--green);}
-    .hc-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:.35rem .8rem;font-family:var(--mono);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border-radius:var(--r);transition:all .2s;}
+
+    /* Flow badge */
+    .flow-badge{display:none;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;
+      padding:.25rem .7rem;border-radius:20px;font-family:var(--mono);}
+    .flow-badge.show{display:flex;align-items:center;gap:.4rem;}
+    .flow-badge.nu{background:rgba(106,40,117,.2);color:var(--accent);border:1px solid rgba(106,40,117,.4);}
+    .flow-badge.eu{background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.3);}
+    .flow-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+    .hc-btn{background:transparent;border:1px solid var(--border);color:var(--muted);
+      padding:.35rem .8rem;font-family:var(--mono);font-size:.65rem;letter-spacing:.1em;
+      text-transform:uppercase;cursor:pointer;border-radius:var(--r);transition:all .2s;}
     .hc-btn:hover{border-color:var(--purple-l);color:var(--purple-l);}
     .hc-btn[aria-pressed="true"]{background:var(--purple);color:#fff;border-color:var(--purple);}
 
-    main{flex:1;display:flex;flex-direction:column;align-items:center;padding:3rem 1.5rem 4rem;}
+    /* ── Main + screen transitions ── */
+    main{flex:1;display:flex;flex-direction:column;align-items:center;padding:2.5rem 1.5rem 4rem;overflow:hidden;}
+
+    /* Slide container */
+    .slide-wrap{width:100%;display:flex;flex-direction:column;align-items:center;}
+
+    .screen{
+      display:none;width:100%;
+      flex-direction:column;align-items:center;
+      opacity:0;transform:translateX(40px);
+      transition:opacity .35s cubic-bezier(.4,0,.2,1), transform .35s cubic-bezier(.4,0,.2,1);
+    }
+    .screen.active{
+      display:flex;opacity:1;transform:translateX(0);
+    }
+    .screen.slide-out-left{
+      opacity:0;transform:translateX(-40px);
+    }
+    .screen.slide-in-right{
+      opacity:0;transform:translateX(40px);
+    }
 
     /* ── Setup guide ── */
-    .guide-wrap{width:100%;max-width:960px;margin-bottom:1.5rem;border:1px solid var(--yellow);border-radius:var(--rl);overflow:hidden;background:rgba(251,191,36,.04);}
-    .guide-toggle{width:100%;background:transparent;border:none;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:var(--yellow);font-family:var(--mono);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;}
+    .guide-wrap{width:100%;max-width:960px;margin-bottom:1.5rem;border:1px solid var(--yellow);
+      border-radius:var(--rl);overflow:hidden;background:rgba(251,191,36,.04);}
+    .guide-toggle{width:100%;background:transparent;border:none;padding:1rem 1.5rem;
+      display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:var(--yellow);
+      font-family:var(--mono);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;}
     .guide-toggle:hover{background:rgba(251,191,36,.06);}
     .guide-toggle .chev{transition:transform .3s;font-style:normal;}
     .guide-toggle[aria-expanded="true"] .chev{transform:rotate(180deg);}
     .guide-body{display:none;padding:0 1.5rem 1.5rem;border-top:1px solid rgba(251,191,36,.15);}
     .guide-body.open{display:block;}
-    .gtabs{display:flex;margin-top:1.2rem;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
-    .gtab{flex:1;padding:.65rem 1rem;background:transparent;border:none;border-right:1px solid var(--border);font-family:var(--mono);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:all .2s;}
+    .gtabs{display:flex;margin-top:1.2rem;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-wrap:wrap;}
+    .gtab{flex:1;min-width:120px;padding:.65rem .75rem;background:transparent;border:none;
+      border-right:1px solid var(--border);font-family:var(--mono);font-size:.62rem;
+      letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:all .2s;}
     .gtab:last-child{border-right:none;}
     .gtab:hover{background:var(--bg3);color:var(--text);}
     .gtab.active{background:var(--bg3);color:var(--yellow);}
@@ -66,51 +117,151 @@
     .gstep a{color:var(--purple-l);}
     .gstep ul{padding-left:1.2rem;font-size:.72rem;color:var(--muted);line-height:2;}
     .gstep ul li strong{color:var(--text);}
-    .codeblock{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.2rem;font-size:.68rem;color:var(--green);line-height:1.7;white-space:pre;overflow-x:auto;position:relative;}
-    .cpybtn{position:absolute;top:.5rem;right:.5rem;background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;padding:.25rem .6rem;border-radius:4px;cursor:pointer;transition:all .2s;}
+    .codeblock{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+      padding:1rem 1.2rem;font-size:.68rem;color:var(--green);line-height:1.7;white-space:pre;overflow-x:auto;position:relative;}
+    .cpybtn{position:absolute;top:.5rem;right:.5rem;background:var(--bg3);border:1px solid var(--border);
+      color:var(--muted);font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;
+      padding:.25rem .6rem;border-radius:4px;cursor:pointer;transition:all .2s;}
     .cpybtn:hover{border-color:var(--green);color:var(--green);}
     .cpybtn.copied{color:var(--green);border-color:var(--green);}
-    .ibox{background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.25);border-radius:var(--r);padding:.85rem 1rem;font-size:.7rem;color:var(--blue);line-height:1.7;margin-top:.75rem;}
-    .wbox{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:var(--r);padding:.85rem 1rem;font-size:.7rem;color:var(--yellow);line-height:1.7;margin-top:.75rem;}
+    .ibox{background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.25);border-radius:var(--r);
+      padding:.85rem 1rem;font-size:.7rem;color:var(--blue);line-height:1.7;margin-top:.75rem;}
+    .wbox{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:var(--r);
+      padding:.85rem 1rem;font-size:.7rem;color:var(--yellow);line-height:1.7;margin-top:.75rem;}
 
     /* ── Config panels ── */
-    .cfg{width:100%;max-width:960px;margin-bottom:1.25rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;}
+    .cfg{width:100%;max-width:960px;margin-bottom:1.25rem;background:var(--bg2);
+      border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;}
     .cfg-hdr{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid var(--border);}
-    .cfg-title{font-family:var(--sans);font-size:.8rem;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:.6rem;}
+    .cfg-title{font-family:var(--sans);font-size:.8rem;font-weight:600;color:var(--muted);
+      letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:.6rem;}
     .badge{font-size:.58rem;padding:.18rem .55rem;border-radius:20px;letter-spacing:.12em;text-transform:uppercase;font-family:var(--mono);}
     .b-entra{background:rgba(96,165,250,.15);color:var(--blue);border:1px solid rgba(96,165,250,.3);}
     .b-supa{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.25);}
+    .b-msal{background:rgba(106,40,117,.2);color:var(--accent);border:1px solid rgba(106,40,117,.4);}
     .cfg-body{padding:1.25rem 1.5rem;}
     .cfg-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
     .cfg-field label{display:block;font-size:.62rem;letter-spacing:.15em;text-transform:uppercase;color:var(--purple-l);margin-bottom:.35rem;}
-    .cfg-field input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.65rem .9rem;font-family:var(--mono);font-size:.72rem;border-radius:var(--r);transition:border-color .2s;}
+    .cfg-field input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+      padding:.65rem .9rem;font-family:var(--mono);font-size:.72rem;border-radius:var(--r);transition:border-color .2s;}
     .cfg-field input:focus{outline:none;border-color:var(--purple);}
+    .cfg-field input::placeholder{color:var(--dim);}
     .cfg-status{display:flex;align-items:center;gap:.5rem;font-size:.68rem;margin-top:.5rem;}
     .sdot2{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
     .sdot2.on{background:var(--green);box-shadow:0 0 6px var(--green);}
     .sdot2.off{background:var(--red);}
     .sdot2.idle{background:var(--dim);}
 
-    /* ── Cards ── */
-    .card{width:100%;max-width:500px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;animation:cardIn .4s cubic-bezier(.34,1.56,.64,1) both;}
-    @keyframes cardIn{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    /* ── HOME PAGE ── */
+    .home-wrap{width:100%;max-width:860px;}
+    .home-hero{text-align:center;margin-bottom:3rem;padding-top:1rem;}
+    .home-hero h1{font-family:var(--sans);font-size:clamp(2rem,5vw,3.2rem);font-weight:800;
+      color:var(--text);line-height:1.1;margin-bottom:.75rem;}
+    .home-hero h1 span{color:var(--accent);}
+    .home-hero p{font-size:.8rem;color:var(--muted);max-width:480px;margin:0 auto;line-height:1.9;}
+
+    .pathway-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;}
+
+    .pathway-card{
+      background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);
+      overflow:hidden;cursor:pointer;
+      transition:transform .3s cubic-bezier(.34,1.4,.64,1), border-color .25s, box-shadow .25s;
+      position:relative;
+    }
+    .pathway-card:hover{
+      transform:translateY(-6px);
+      border-color:var(--purple-l);
+      box-shadow:0 20px 50px rgba(106,40,117,.3);
+    }
+    .pathway-card:focus-visible{
+      outline:2px solid var(--focus);outline-offset:4px;
+    }
+    .pathway-card-top{
+      height:160px;display:flex;align-items:center;justify-content:center;
+      position:relative;overflow:hidden;
+    }
+    .pc-nu .pathway-card-top{background:linear-gradient(135deg,#190d24 0%,#3d1650 100%);}
+    .pc-eu .pathway-card-top{background:linear-gradient(135deg,#0d1930 0%,#1a2a5e 100%);}
+
+    .pathway-icon{
+      font-size:3.5rem;position:relative;z-index:1;
+      filter:drop-shadow(0 0 20px rgba(106,40,117,.5));
+    }
+    .pc-eu .pathway-icon{filter:drop-shadow(0 0 20px rgba(96,165,250,.4));}
+
+    /* decorative glyph behind icon */
+    .pathway-glyph{
+      position:absolute;right:.5rem;bottom:-.5rem;
+      font-family:var(--sans);font-size:6rem;font-weight:800;
+      color:rgba(255,255,255,.04);line-height:1;pointer-events:none;
+      user-select:none;
+    }
+
+    /* top accent line */
+    .pathway-card::before{
+      content:'';position:absolute;top:0;left:0;right:0;height:2px;
+      background:linear-gradient(90deg,var(--purple),var(--accent));
+      opacity:0;transition:opacity .25s;
+    }
+    .pc-eu::before{background:linear-gradient(90deg,#1a4fa8,var(--blue));}
+    .pathway-card:hover::before{opacity:1;}
+
+    .pathway-info{padding:1.5rem;}
+    .pathway-tag{font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:.4rem;}
+    .pc-eu .pathway-tag{color:var(--blue);}
+    .pathway-name{font-family:var(--sans);font-size:1.25rem;font-weight:700;color:var(--text);margin-bottom:.5rem;line-height:1.2;}
+    .pathway-desc{font-size:.7rem;color:var(--muted);line-height:1.8;margin-bottom:1rem;}
+    .pathway-steps{display:flex;flex-direction:column;gap:.35rem;margin-bottom:1.25rem;}
+    .pathway-step{display:flex;align-items:center;gap:.6rem;font-size:.65rem;color:var(--muted);}
+    .pathway-step::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+    .pc-eu .pathway-step::before{background:var(--blue);}
+    .pathway-cta{
+      display:flex;align-items:center;justify-content:center;gap:.5rem;
+      padding:.75rem 1.25rem;border-radius:var(--r);
+      font-family:var(--mono);font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;
+      border:none;cursor:pointer;width:100%;transition:all .2s;
+    }
+    .pc-nu .pathway-cta{background:linear-gradient(135deg,var(--purple),var(--accent));color:#fff;}
+    .pc-nu .pathway-cta:hover{box-shadow:0 6px 20px var(--glow);}
+    .pc-eu .pathway-cta{background:linear-gradient(135deg,#1a4fa8,var(--blue));color:#fff;}
+    .pc-eu .pathway-cta:hover{box-shadow:0 6px 20px rgba(96,165,250,.3);}
+
+    /* ── Auth cards ── */
+    .card{width:100%;max-width:500px;background:var(--bg2);border:1px solid var(--border);
+      border-radius:var(--rl);overflow:hidden;}
     .card-hdr{padding:1.5rem 2rem 1.25rem;border-bottom:1px solid var(--border);position:relative;overflow:hidden;}
-    .card-hdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--purple),var(--accent));}
+    .card-hdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+      background:linear-gradient(90deg,var(--purple),var(--accent));}
+    .card-hdr.eu-hdr::before{background:linear-gradient(90deg,#1a4fa8,var(--blue));}
     .eyebrow{font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--accent);margin-bottom:.4rem;}
+    .eu-hdr .eyebrow{color:var(--blue);}
     .card-title{font-family:var(--sans);font-size:1.35rem;font-weight:700;color:var(--text);line-height:1.2;}
     .card-sub{font-size:.72rem;color:var(--muted);margin-top:.35rem;line-height:1.7;}
-    .pbadge{display:inline-flex;align-items:center;gap:.4rem;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;padding:.25rem .65rem;border-radius:20px;margin-top:.6rem;}
+    .pbadge{display:inline-flex;align-items:center;gap:.4rem;font-size:.6rem;letter-spacing:.12em;
+      text-transform:uppercase;padding:.25rem .65rem;border-radius:20px;margin-top:.6rem;}
     .pbadge.entra{background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.3);}
     .pbadge.supa{background:rgba(52,211,153,.1);color:var(--green);border:1px solid rgba(52,211,153,.25);}
+    .pbadge.msal{background:rgba(106,40,117,.15);color:var(--accent);border:1px solid rgba(106,40,117,.35);}
     .pbadge-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
     .card-body{padding:1.75rem 2rem;}
+
+    /* ── SSO loading card ── */
+    .sso-card{width:100%;max-width:500px;background:var(--bg2);border:1px solid var(--border);
+      border-radius:var(--rl);padding:3rem 2rem;display:flex;flex-direction:column;
+      align-items:center;text-align:center;gap:1.25rem;}
+    .sso-spinner{width:48px;height:48px;border:3px solid rgba(106,40,117,.2);
+      border-top-color:var(--purple-l);border-radius:50%;animation:sp .8s linear infinite;}
+    .sso-title{font-family:var(--sans);font-size:1.1rem;font-weight:700;color:var(--text);}
+    .sso-sub{font-size:.72rem;color:var(--muted);line-height:1.8;}
 
     /* ── Forms ── */
     .fg{margin-bottom:1.25rem;}
     .fg label{display:block;font-size:.62rem;letter-spacing:.15em;text-transform:uppercase;color:var(--purple-l);margin-bottom:.4rem;}
     .iw{position:relative;}
     .iicon{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:var(--dim);font-size:.85rem;pointer-events:none;}
-    .fi{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:.8rem 1rem .8rem 2.6rem;font-family:var(--mono);font-size:.82rem;border-radius:var(--r);transition:border-color .2s,box-shadow .2s;}
+    .fi{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);
+      padding:.8rem 1rem .8rem 2.6rem;font-family:var(--mono);font-size:.82rem;
+      border-radius:var(--r);transition:border-color .2s,box-shadow .2s;}
     .fi:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px var(--glow);}
     .fi:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
     .fi::placeholder{color:var(--dim);}
@@ -119,42 +270,57 @@
     .ferr.show{display:flex;}
 
     /* ── Buttons ── */
-    .btn{width:100%;padding:.9rem 1.5rem;font-family:var(--mono);font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;border:none;border-radius:var(--r);cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;}
+    .btn{width:100%;padding:.9rem 1.5rem;font-family:var(--mono);font-size:.75rem;
+      letter-spacing:.15em;text-transform:uppercase;border:none;border-radius:var(--r);
+      cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;}
     .btn-p{background:linear-gradient(135deg,var(--purple),var(--accent));color:#fff;}
     .btn-p:hover{transform:translateY(-1px);box-shadow:0 8px 24px var(--glow);}
     .btn-p:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none;}
+    .btn-blue{background:linear-gradient(135deg,#1a4fa8,var(--blue));color:#fff;}
+    .btn-blue:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(96,165,250,.3);}
+    .btn-blue:disabled{opacity:.5;cursor:not-allowed;transform:none;}
     .btn-g{background:transparent;color:var(--muted);border:1px solid var(--border);}
     .btn-g:hover{border-color:var(--purple-l);color:var(--purple-l);}
-    .spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:none;}
+    .spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
+      border-radius:50%;animation:sp .7s linear infinite;display:none;}
     .btn.loading .spin{display:block;}
     .btn.loading .lbl{opacity:.6;}
     @keyframes sp{to{transform:rotate(360deg)}}
 
     /* ── Alerts ── */
-    .alert{display:none;margin-bottom:1rem;padding:.8rem 1rem;border-radius:var(--r);font-size:.72rem;line-height:1.6;align-items:flex-start;gap:.6rem;}
+    .alert{display:none;margin-bottom:1rem;padding:.8rem 1rem;border-radius:var(--r);
+      font-size:.72rem;line-height:1.6;align-items:flex-start;gap:.6rem;}
     .alert.show{display:flex;}
     .a-err{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:var(--red);}
     .a-info{background:rgba(124,92,224,.1);border:1px solid var(--border);color:var(--purple-l);}
-    .a-warn{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);color:var(--yellow);}
     .a-ok{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);color:var(--green);}
+    .a-blue{background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.25);color:var(--blue);}
     .aico{font-style:normal;flex-shrink:0;}
 
     /* ── Token display ── */
-    .tcard{width:100%;max-width:960px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;animation:cardIn .4s cubic-bezier(.34,1.56,.64,1) both;}
-    .thdr{padding:1.5rem 2rem;border-bottom:1px solid var(--border);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;}
-    .thdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--green),var(--purple),var(--accent));}
-    .tbadge{display:flex;align-items:center;gap:.5rem;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);color:var(--green);padding:.35rem .85rem;border-radius:20px;font-size:.68rem;letter-spacing:.1em;}
+    .tcard{width:100%;max-width:960px;background:var(--bg2);border:1px solid var(--border);
+      border-radius:var(--rl);overflow:hidden;}
+    .thdr{padding:1.5rem 2rem;border-bottom:1px solid var(--border);position:relative;
+      overflow:hidden;display:flex;align-items:center;justify-content:space-between;}
+    .thdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+      background:linear-gradient(90deg,var(--green),var(--purple),var(--accent));}
+    .tbadge{display:flex;align-items:center;gap:.5rem;background:rgba(52,211,153,.12);
+      border:1px solid rgba(52,211,153,.3);color:var(--green);padding:.35rem .85rem;
+      border-radius:20px;font-size:.68rem;letter-spacing:.1em;}
     .pdot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pa 1.5s ease-in-out infinite;}
     @keyframes pa{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
     .tpanels{display:grid;grid-template-columns:1fr 1fr;}
     .tpanel{padding:1.75rem 2rem;}
     .tpanel:first-child{border-right:1px solid var(--border);}
-    .plabel{font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;}
+    .plabel{font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--muted);
+      margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;}
     .plabel::before{content:'';width:16px;height:1px;background:currentColor;}
-    .jwt-raw{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:1rem;font-size:.66rem;line-height:1.8;word-break:break-all;max-height:300px;overflow-y:auto;}
-    .ph{color:var(--yellow);} .ps{color:var(--dim);} .pp{color:var(--purple-l);} .pg{color:var(--green);}
+    .jwt-raw{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+      padding:1rem;font-size:.66rem;line-height:1.8;word-break:break-all;max-height:300px;overflow-y:auto;}
+    .ph{color:var(--yellow);}.ps{color:var(--dim);}.pp{color:var(--purple-l);}.pg{color:var(--green);}
     .claims{display:flex;flex-direction:column;gap:.55rem;}
-    .crow{display:grid;grid-template-columns:170px 1fr;gap:.75rem;padding:.7rem .9rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);transition:border-color .2s;}
+    .crow{display:grid;grid-template-columns:170px 1fr;gap:.75rem;padding:.7rem .9rem;
+      background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);transition:border-color .2s;}
     .crow:hover{border-color:var(--purple);}
     .ckey{font-size:.6rem;letter-spacing:.1em;color:var(--accent);text-transform:uppercase;}
     .cval{font-size:.72rem;color:var(--text);word-break:break-all;line-height:1.5;}
@@ -163,19 +329,20 @@
     .cval.hi{color:var(--yellow);}
     .cval.me{color:var(--orange);}
     .cval.lo{color:var(--red);}
-    .tfooter{padding:1.25rem 2rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;}
+    .tfooter{padding:1.25rem 2rem;border-top:1px solid var(--border);display:flex;
+      align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;}
     .tfnote{font-size:.65rem;color:var(--muted);}
 
-    /* ── Writeback status bar ── */
-    .wb-bar{width:100%;max-width:500px;margin-bottom:1.5rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1.2rem;display:flex;align-items:center;gap:.75rem;font-size:.72rem;display:none;}
+    /* ── Writeback bar ── */
+    .wb-bar{width:100%;max-width:500px;margin-bottom:1.5rem;background:var(--bg2);
+      border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1.2rem;
+      align-items:center;gap:.75rem;font-size:.72rem;display:none;}
     .wb-bar.show{display:flex;}
-    .wb-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--blue);border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0;}
+    .wb-bar.wide{max-width:960px;}
+    .wb-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.2);
+      border-top-color:var(--blue);border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0;}
     .wb-check{color:var(--green);font-size:1rem;flex-shrink:0;}
     .wb-x{color:var(--red);font-size:1rem;flex-shrink:0;}
-
-    /* ── Screens ── */
-    .screen{display:none;}
-    .screen.active{display:flex;flex-direction:column;align-items:center;width:100%;}
 
     /* ── High contrast ── */
     body.hc{
@@ -190,27 +357,35 @@
     ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 
     @media(max-width:700px){
+      .pathway-grid{grid-template-columns:1fr;}
       .cfg-row{grid-template-columns:1fr;}
       .tpanels{grid-template-columns:1fr;}
       .tpanel:first-child{border-right:none;border-bottom:1px solid var(--border);}
       .crow{grid-template-columns:130px 1fr;}
       .card-body,.card-hdr{padding:1.25rem;}
     }
-    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
+    @media(prefers-reduced-motion:reduce){
+      *,*::before,*::after{animation:none!important;transition:none!important;}
+      .screen{transition:none!important;}
+    }
   </style>
 </head>
 <body>
   <a href="#main" class="skip-link">Skip to main content</a>
   <div class="shell">
 
-    <!-- ── Top bar ── -->
+    <!-- ── Topbar ── -->
     <header role="banner">
       <nav class="topbar" aria-label="Application navigation">
-        <a href="#" class="brand" aria-label="SecureAuth Identity Portal">
+        <button class="brand" id="homeBtn" aria-label="SecureAuth — Go to home">
           <span class="brand-icon" aria-hidden="true">✦</span>SecureAuth
-        </a>
+        </button>
         <div class="topbar-r">
-          <div class="steps" role="progressbar" aria-valuemin="1" aria-valuemax="3" aria-valuenow="1" aria-label="Step 1 of 3" id="stepBar">
+          <span class="flow-badge nu" id="flowBadge">
+            <span class="flow-dot" aria-hidden="true"></span>
+            <span id="flowLabel">New User</span>
+          </span>
+          <div class="steps" id="stepBar" role="progressbar" aria-valuemin="1" aria-valuemax="3" aria-valuenow="1" aria-label="Step 1 of 3">
             <span class="sdot active" id="d1" aria-hidden="true"></span>
             <span class="sdot"        id="d2" aria-hidden="true"></span>
             <span class="sdot"        id="d3" aria-hidden="true"></span>
@@ -221,332 +396,511 @@
     </header>
 
     <main id="main">
+      <div class="slide-wrap" id="slideWrap">
 
-      <!-- ════════════════════════════════
-           SETUP GUIDE
-      ════════════════════════════════ -->
-      <div class="guide-wrap" role="region" aria-label="Setup guide">
-        <button class="guide-toggle" id="gToggle" aria-expanded="false" aria-controls="gBody">
-          <span>⚠ &nbsp; Setup Guide — Configuration &amp; SQL</span>
-          <em class="chev" aria-hidden="true">▼</em>
-        </button>
-        <div class="guide-body" id="gBody">
+        <!-- ══════════════════════════════
+             CONFIG PANELS (always visible)
+        ══════════════════════════════ -->
+        <div id="configPanels" style="width:100%;display:flex;flex-direction:column;align-items:center;">
 
-          <div class="gtabs" role="tablist">
-            <button class="gtab active" role="tab" aria-selected="true"  id="tEntra"    onclick="gTab('Entra')"   >🔷 Entra ID Worker</button>
-            <button class="gtab"        role="tab" aria-selected="false" id="tSupabase" onclick="gTab('Supabase')">🟢 Supabase Table</button>
-            <button class="gtab"        role="tab" aria-selected="false" id="tWorker"   onclick="gTab('Worker')"  >⚙ Worker Updates</button>
-          </div>
+          <!-- Setup Guide -->
+          <div class="guide-wrap" role="region" aria-label="Setup guide">
+            <button class="guide-toggle" id="gToggle" aria-expanded="false" aria-controls="gBody">
+              <span>⚠ &nbsp; Setup Guide — Configuration &amp; SQL</span>
+              <em class="chev" aria-hidden="true">▼</em>
+            </button>
+            <div class="guide-body" id="gBody">
+              <div class="gtabs" role="tablist">
+                <button class="gtab active" role="tab" aria-selected="true"  id="tEntra"    onclick="gTab('Entra')"   >🔷 Entra/Worker</button>
+                <button class="gtab"        role="tab" aria-selected="false" id="tSupabase" onclick="gTab('Supabase')">🟢 Supabase</button>
+                <button class="gtab"        role="tab" aria-selected="false" id="tWorker"   onclick="gTab('Worker')"  >⚙ Worker v2</button>
+                <button class="gtab"        role="tab" aria-selected="false" id="tMsal"     onclick="gTab('Msal')"    >🔐 MSAL SSO</button>
+              </div>
 
-          <!-- ENTRA TAB -->
-          <div class="gpanel active" id="pEntra" role="tabpanel" aria-labelledby="tEntra">
-            <div class="gstep">
-              <h3>New Entra Permission Required — User.ReadWrite.All</h3>
-              <p>The writeback feature (writing personal email to Entra's <code>otherMails</code>) requires a new permission on your existing App Registration.</p>
-              <ul>
-                <li>Go to <a href="https://portal.azure.com" target="_blank" rel="noopener">portal.azure.com</a> → <strong>Entra ID → App registrations → SecureAuth-EmailChecker</strong></li>
-                <li>Left sidebar → <strong>API permissions → + Add a permission</strong></li>
-                <li><strong>Microsoft Graph → Application permissions</strong></li>
-                <li>Search and select: <strong>User.ReadWrite.All</strong> → <strong>Add permissions</strong></li>
-                <li>Click <strong>Grant admin consent for [your tenant]</strong> → confirm ✓</li>
-              </ul>
-              <div class="wbox">⚠ <strong>User.ReadWrite.All</strong> allows updating user properties. Only grant this in environments you control. For production, scope this down with attribute-level restrictions.</div>
-            </div>
-          </div>
+              <!-- ENTRA TAB -->
+              <div class="gpanel active" id="pEntra" role="tabpanel" aria-labelledby="tEntra">
+                <div class="gstep">
+                  <h3>Entra App Registration — Permissions Required</h3>
+                  <p>Ensure both permissions below are granted with admin consent on your <strong>SecureAuth-EmailChecker</strong> App Registration:</p>
+                  <ul>
+                    <li><strong>User.ReadBasic.All</strong> — email existence check (already done)</li>
+                    <li><strong>User.ReadWrite.All</strong> — personal email writeback (already done)</li>
+                  </ul>
+                </div>
+              </div>
 
-          <!-- SUPABASE TAB -->
-          <div class="gpanel" id="pSupabase" role="tabpanel" aria-labelledby="tSupabase">
-            <div class="gstep">
-              <h3>Create the user_credentials table</h3>
-              <p>In your Supabase dashboard → <strong>SQL Editor</strong>, run this script to create the table and populate sample data:</p>
-              <div class="codeblock" id="sqlCreds">
--- Create the user credentials table
+              <!-- SUPABASE TAB -->
+              <div class="gpanel" id="pSupabase" role="tabpanel" aria-labelledby="tSupabase">
+                <div class="gstep">
+                  <h3>user_credentials table (if not already created)</h3>
+                  <div class="codeblock" id="sqlCreds">
 CREATE TABLE IF NOT EXISTS public.user_credentials (
   id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   username         TEXT UNIQUE NOT NULL,
   password         TEXT NOT NULL,
   first_name       TEXT NOT NULL,
   last_name        TEXT NOT NULL,
-  identity_strength TEXT NOT NULL,   -- 'High' | 'Medium' | 'Low'
+  identity_strength TEXT NOT NULL,
   personal_email   TEXT NOT NULL,
   created_at       TIMESTAMPTZ DEFAULT NOW()
 );
-
--- Enable RLS and allow anon reads (for login lookup)
 ALTER TABLE public.user_credentials ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "allow_anon_select"
-  ON public.user_credentials FOR SELECT USING (true);
+CREATE POLICY "allow_anon_select" ON public.user_credentials FOR SELECT USING (true);
 
--- Sample data
 INSERT INTO public.user_credentials
   (username, password, first_name, last_name, identity_strength, personal_email)
 VALUES
-  ('john.doe',    'Pass@1234', 'John',  'Doe',    'High',   '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="bbd1d4d3d595dfd4defbdcd6dad2d795d8d4d6">[email&#160;protected]</a>'),
-  ('jane.smith',  'Pass@5678', 'Jane',  'Smith',  'Medium', '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="89e3e8e7eca7fae4e0fde1c9eee4e8e0e5a7eae6e4">[email&#160;protected]</a>'),
-  ('bob.jones',   'Pass@9012', 'Bob',   'Jones',  'Low',    '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d6b4b9b4f8bcb9b8b3a596beb9a2bbb7bfbaf8b5b9bb">[email&#160;protected]</a>'),
-  ('alice.chen',  'Pass@3456', 'Alice', 'Chen',   'High',   '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="492825202a2c672a212c2709263c3d25262622672a2624">[email&#160;protected]</a>'),
-  ('tom.wright',  'Pass@7890', 'Tom',   'Wright', 'Medium', '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="384c5755164f4a515f504c784159505757165b5755">[email&#160;protected]</a>')
+  ('john.doe',   'Pass@1234', 'John',  'Doe',    'High',   'john.doe@gmail.com'),
+  ('jane.smith', 'Pass@5678', 'Jane',  'Smith',  'Medium', 'jane.smith@gmail.com'),
+  ('bob.jones',  'Pass@9012', 'Bob',   'Jones',  'Low',    'bob.jones@hotmail.com'),
+  ('alice.chen', 'Pass@3456', 'Alice', 'Chen',   'High',   'alice.chen@outlook.com'),
+  ('tom.wright', 'Pass@7890', 'Tom',   'Wright', 'Medium', 'tom.wright@yahoo.com')
 ON CONFLICT DO NOTHING;
 <button class="cpybtn" onclick="cpyCode('sqlCreds',this)">Copy</button></div>
-              <div class="ibox">ℹ Passwords are stored as plain text here for demo purposes. In production, use a hashed approach (e.g. bcrypt) or delegate authentication entirely to an identity provider.</div>
-            </div>
-            <div class="gstep">
-              <h3>Test credentials</h3>
-              <div class="codeblock">Username: john.doe   | Password: Pass@1234
-Username: jane.smith | Password: Pass@5678
-Username: bob.jones  | Password: Pass@9012
-Username: alice.chen | Password: Pass@3456
-Username: tom.wright | Password: Pass@7890</div>
-            </div>
-          </div>
-
-          <!-- WORKER TAB -->
-          <div class="gpanel" id="pWorker" role="tabpanel" aria-labelledby="tWorker">
-            <div class="gstep">
-              <h3>Update your Cloudflare Worker code</h3>
-              <p>The new <strong>worker.js</strong> file (downloaded alongside this SPA) replaces your existing Worker code entirely. It adds two new routes:</p>
-              <ul>
-                <li><strong>writeback-email</strong> — PATCHes the user's <code>otherMails</code> in Entra ID</li>
-                <li><strong>generate-token</strong> — Signs and returns a HS256 JWT with all user claims</li>
-              </ul>
-              <ul>
-                <li>Go to <a href="https://workers.cloudflare.com" target="_blank" rel="noopener">workers.cloudflare.com</a> → your worker → <strong>Edit code</strong></li>
-                <li>Select all (Ctrl+A), delete, paste the new <strong>worker.js</strong> contents</li>
-                <li>Click <strong>Deploy</strong></li>
-              </ul>
-            </div>
-            <div class="gstep">
-              <h3>Add new environment variable</h3>
-              <p>In Cloudflare: <strong>Workers → your worker → Settings → Variables → Add variable</strong>:</p>
-              <div class="codeblock" id="wvars">JWT_SECRET  →  any long random string, e.g: s3cur3Auth!jwt$2025#secret
-              (mark as Encrypted)
-<button class="cpybtn" onclick="cpyCode('wvars',this)">Copy</button></div>
-              <p style="margin-top:.6rem;">The existing 4 variables (ENTRA_TENANT_ID, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET, ALLOWED_ORIGIN) remain unchanged.</p>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- ════════════════════════════════
-           CONFIG: ENTRA / WORKER
-      ════════════════════════════════ -->
-      <div class="cfg" role="region" aria-label="Entra ID Worker configuration">
-        <div class="cfg-hdr">
-          <h2 class="cfg-title">🔷 Identity Store — Email Check &amp; Writeback
-            <span class="badge b-entra">Entra ID via Cloudflare Worker</span>
-          </h2>
-        </div>
-        <div class="cfg-body">
-          <div class="cfg-row">
-            <div class="cfg-field" style="grid-column:1/-1">
-              <label for="workerUrl">Worker Proxy URL</label>
-              <input type="url" id="workerUrl" placeholder="https://secureauth-proxy.your-name.workers.dev"
-                aria-label="Cloudflare Worker URL" autocomplete="off" />
-            </div>
-          </div>
-          <div class="cfg-status" aria-live="polite" aria-atomic="true">
-            <span class="sdot2 idle" id="wDot"></span>
-            <span id="wTxt" style="font-size:.68rem;color:var(--muted)">Paste your Cloudflare Worker URL to connect</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ════════════════════════════════
-           CONFIG: SUPABASE
-      ════════════════════════════════ -->
-      <div class="cfg" role="region" aria-label="Supabase configuration">
-        <div class="cfg-hdr">
-          <h2 class="cfg-title">🟢 User Credentials Database
-            <span class="badge b-supa">Supabase</span>
-          </h2>
-        </div>
-        <div class="cfg-body">
-          <div class="cfg-row">
-            <div class="cfg-field">
-              <label for="sbUrl">Project URL</label>
-              <input type="url" id="sbUrl" placeholder="https://xxxxxxxxxxxx.supabase.co"
-                aria-label="Supabase project URL" autocomplete="off" />
-            </div>
-            <div class="cfg-field">
-              <label for="sbKey">Anon Public Key</label>
-              <input type="text" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                aria-label="Supabase anon key" autocomplete="off" />
-            </div>
-          </div>
-          <div class="cfg-status" aria-live="polite" aria-atomic="true">
-            <span class="sdot2 idle" id="sbDot"></span>
-            <span id="sbTxt" style="font-size:.68rem;color:var(--muted)">Enter Supabase URL and anon key</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ════════════════════════════════
-           SCREEN 1 — Entra Email Check
-      ════════════════════════════════ -->
-      <div class="screen active" id="s1" role="region" aria-label="Email verification">
-        <div class="card">
-          <div class="card-hdr">
-            <p class="eyebrow">Step 1 of 3</p>
-            <h1 class="card-title" id="h1">Enter your email</h1>
-            <p class="card-sub">We'll verify your email exists in the directory before proceeding.</p>
-            <span class="pbadge entra"><span class="pbadge-dot" aria-hidden="true"></span>Verified via Microsoft Entra ID</span>
-          </div>
-          <div class="card-body">
-            <div class="alert a-err" id="e1Alert" role="alert" aria-live="assertive">
-              <em class="aico">✕</em><span id="e1Msg"></span>
-            </div>
-            <form id="f1" novalidate aria-label="Email check form">
-              <div class="fg">
-                <label for="emailIn">Email Address</label>
-                <div class="iw">
-                  <input type="email" id="emailIn" class="fi" placeholder="you@yourtenant.onmicrosoft.com"
-                    autocomplete="email" required aria-required="true" aria-describedby="emailErr" />
-                  <span class="iicon" aria-hidden="true">@</span>
                 </div>
-                <p class="ferr" id="emailErr" role="alert"><span aria-hidden="true">✕</span> Please enter a valid email address.</p>
               </div>
-              <button type="submit" class="btn btn-p" id="btn1">
-                <span class="spin" aria-hidden="true"></span><span class="lbl">Check Email</span>
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
 
-      <!-- ════════════════════════════════
-           SCREEN 2 — Username + Password
-      ════════════════════════════════ -->
-      <div class="screen" id="s2" role="region" aria-label="Login">
-        <div class="card">
-          <div class="card-hdr">
-            <p class="eyebrow">Step 2 of 3</p>
-            <h1 class="card-title" id="h2">Sign in</h1>
-            <p class="card-sub">Email verified. Enter your username and password to authenticate.</p>
-            <span class="pbadge supa"><span class="pbadge-dot" aria-hidden="true"></span>Authenticated via Supabase user_credentials</span>
-          </div>
-          <div class="card-body">
-            <div class="alert a-info show" id="e2Badge" role="status">
-              <em class="aico">✓</em>
-              <span>Entra ID verified: <strong id="e2Email"></strong></span>
-            </div>
-            <div class="alert a-err" id="e2Alert" role="alert" aria-live="assertive">
-              <em class="aico">✕</em><span id="e2Msg"></span>
-            </div>
-            <form id="f2" novalidate aria-label="Login form">
-              <div class="fg">
-                <label for="usernameIn">Username</label>
-                <div class="iw">
-                  <input type="text" id="usernameIn" class="fi" placeholder="john.doe"
-                    autocomplete="username" required aria-required="true" aria-describedby="usernameErr" />
-                  <span class="iicon" aria-hidden="true">⌘</span>
+              <!-- WORKER TAB -->
+              <div class="gpanel" id="pWorker" role="tabpanel" aria-labelledby="tWorker">
+                <div class="gstep">
+                  <h3>Worker is already up to date</h3>
+                  <p>The worker.js from the previous build already supports <strong>check-email</strong>, <strong>writeback-email</strong>, and <strong>generate-token</strong>. No changes needed unless you haven't deployed it yet.</p>
+                  <p>Env variables needed: <strong>ENTRA_TENANT_ID</strong>, <strong>ENTRA_CLIENT_ID</strong>, <strong>ENTRA_CLIENT_SECRET</strong>, <strong>JWT_SECRET</strong>, <strong>ALLOWED_ORIGIN</strong>.</p>
                 </div>
-                <p class="ferr" id="usernameErr" role="alert"><span aria-hidden="true">✕</span> Username is required.</p>
               </div>
-              <div class="fg">
-                <label for="passwordIn">Password</label>
-                <div class="iw">
-                  <input type="password" id="passwordIn" class="fi" placeholder="••••••••"
-                    autocomplete="current-password" required aria-required="true" aria-describedby="passwordErr" />
-                  <span class="iicon" aria-hidden="true">⚿</span>
+
+              <!-- MSAL TAB -->
+              <div class="gpanel" id="pMsal" role="tabpanel" aria-labelledby="tMsal">
+                <div class="gstep">
+                  <h3>Step 1 — Add a Redirect URI to your Entra App Registration</h3>
+                  <p>The MSAL pop-up requires a redirect URI pointing back to your app. You can use the <strong>same app registration</strong> as the Worker (SecureAuth-EmailChecker).</p>
+                  <ul>
+                    <li>Go to <a href="https://portal.azure.com" target="_blank" rel="noopener">portal.azure.com</a> → <strong>Entra ID → App registrations → SecureAuth-EmailChecker</strong></li>
+                    <li>Left sidebar → <strong>Authentication → + Add a platform → Single-page application</strong></li>
+                    <li><strong>Redirect URI:</strong> <code>https://jerrya-byte.github.io/secure-auth-spa/</code></li>
+                    <li>Tick <strong>Access tokens</strong> and <strong>ID tokens</strong> under Implicit grant</li>
+                    <li>Click <strong>Configure</strong> → <strong>Save</strong></li>
+                  </ul>
+                  <div class="wbox">⚠ The redirect URI must exactly match your GitHub Pages URL including the trailing slash.</div>
                 </div>
-                <p class="ferr" id="passwordErr" role="alert"><span aria-hidden="true">✕</span> Password is required.</p>
+                <div class="gstep">
+                  <h3>Step 2 — Paste credentials into the MSAL config panel below</h3>
+                  <p>You need the same <strong>Tenant ID</strong> and <strong>Client ID</strong> from your app registration. Paste them into the <em>MSAL SSO Configuration</em> panel below.</p>
+                </div>
+                <div class="gstep">
+                  <h3>Step 3 — Existing User username matching</h3>
+                  <p>After SSO the app extracts the username from the Entra UPN — the part before the <code>@</code> symbol. This must match a <strong>username</strong> in your <code>user_credentials</code> table.</p>
+                  <div class="ibox">ℹ Example: SSO returns UPN <code>john.doe@yourtenant.onmicrosoft.com</code> → username extracted as <code>john.doe</code> → looked up in user_credentials table.</div>
+                </div>
               </div>
-              <div style="display:flex;flex-direction:column;gap:.75rem;">
-                <button type="submit" class="btn btn-p" id="btn2">
-                  <span class="spin" aria-hidden="true"></span><span class="lbl">Sign In</span>
-                </button>
-                <button type="button" class="btn btn-g" id="backBtn" aria-label="Back to email entry">← Back</button>
+
+            </div>
+          </div>
+
+          <!-- Config: Worker -->
+          <div class="cfg" role="region" aria-label="Worker configuration">
+            <div class="cfg-hdr">
+              <h2 class="cfg-title">🔷 Cloudflare Worker Proxy <span class="badge b-entra">Entra ID + JWT</span></h2>
+            </div>
+            <div class="cfg-body">
+              <div class="cfg-row">
+                <div class="cfg-field" style="grid-column:1/-1">
+                  <label for="workerUrl">Worker Proxy URL</label>
+                  <input type="url" id="workerUrl" placeholder="https://secureauth-proxy.your-name.workers.dev" autocomplete="off" />
+                </div>
               </div>
-            </form>
+              <div class="cfg-status" aria-live="polite">
+                <span class="sdot2 idle" id="wDot"></span>
+                <span id="wTxt" style="font-size:.68rem;color:var(--muted)">Paste your Cloudflare Worker URL</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Config: Supabase -->
+          <div class="cfg" role="region" aria-label="Supabase configuration">
+            <div class="cfg-hdr">
+              <h2 class="cfg-title">🟢 Supabase — User Credentials <span class="badge b-supa">user_credentials table</span></h2>
+            </div>
+            <div class="cfg-body">
+              <div class="cfg-row">
+                <div class="cfg-field">
+                  <label for="sbUrl">Project URL</label>
+                  <input type="url" id="sbUrl" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off" />
+                </div>
+                <div class="cfg-field">
+                  <label for="sbKey">Anon Public Key</label>
+                  <input type="text" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." autocomplete="off" />
+                </div>
+              </div>
+              <div class="cfg-status" aria-live="polite">
+                <span class="sdot2 idle" id="sbDot"></span>
+                <span id="sbTxt" style="font-size:.68rem;color:var(--muted)">Enter Supabase URL and anon key</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Config: MSAL -->
+          <div class="cfg" role="region" aria-label="MSAL SSO configuration">
+            <div class="cfg-hdr">
+              <h2 class="cfg-title">🔐 MSAL SSO Configuration <span class="badge b-msal">Existing User</span></h2>
+            </div>
+            <div class="cfg-body">
+              <div class="cfg-row">
+                <div class="cfg-field">
+                  <label for="msalTenant">Tenant ID</label>
+                  <input type="text" id="msalTenant" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
+                </div>
+                <div class="cfg-field">
+                  <label for="msalClient">Client ID</label>
+                  <input type="text" id="msalClient" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
+                </div>
+              </div>
+              <div class="cfg-status" aria-live="polite">
+                <span class="sdot2 idle" id="msalDot"></span>
+                <span id="msalTxt" style="font-size:.68rem;color:var(--muted)">Enter Tenant ID and Client ID to enable Existing User SSO</span>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /configPanels -->
+
+        <!-- ══════════════════════════════
+             SCREEN: HOME
+        ══════════════════════════════ -->
+        <div class="screen active" id="sHome" role="region" aria-label="Home — choose your pathway">
+          <div class="home-wrap">
+            <div class="home-hero">
+              <h1>Identity <span>Portal</span></h1>
+              <p>Choose your pathway to get started. New users go through full identity verification. Existing users can sign in instantly with Microsoft SSO.</p>
+            </div>
+            <div class="pathway-grid" role="list">
+
+              <!-- New User card -->
+              <div class="pathway-card pc-nu" role="listitem" tabindex="0"
+                id="nuCard" aria-label="New User — start full verification flow"
+                onkeydown="if(event.key==='Enter'||event.key===' ')startNewUser()">
+                <div class="pathway-card-top" aria-hidden="true">
+                  <span class="pathway-icon">🆕</span>
+                  <span class="pathway-glyph">N</span>
+                </div>
+                <div class="pathway-info">
+                  <p class="pathway-tag">New User</p>
+                  <h2 class="pathway-name">First Time Here?</h2>
+                  <p class="pathway-desc">Complete identity verification through our full 3-step onboarding flow.</p>
+                  <div class="pathway-steps" aria-label="Steps involved">
+                    <div class="pathway-step">Verify email in Entra ID directory</div>
+                    <div class="pathway-step">Authenticate with username &amp; password</div>
+                    <div class="pathway-step">Receive signed ID token + email writeback</div>
+                  </div>
+                  <button class="pathway-cta" onclick="startNewUser()" aria-label="Start new user verification">
+                    Get Started →
+                  </button>
+                </div>
+              </div>
+
+              <!-- Existing User card -->
+              <div class="pathway-card pc-eu" role="listitem" tabindex="0"
+                id="euCard" aria-label="Existing User — sign in with Microsoft SSO"
+                onkeydown="if(event.key==='Enter'||event.key===' ')startExistingUser()">
+                <div class="pathway-card-top" aria-hidden="true">
+                  <span class="pathway-icon">🔐</span>
+                  <span class="pathway-glyph">E</span>
+                </div>
+                <div class="pathway-info">
+                  <p class="pathway-tag">Existing User</p>
+                  <h2 class="pathway-name">Welcome Back</h2>
+                  <p class="pathway-desc">Sign in instantly using your Microsoft account via Single Sign-On.</p>
+                  <div class="pathway-steps" aria-label="Steps involved">
+                    <div class="pathway-step">Microsoft Entra ID SSO (MSAL popup)</div>
+                    <div class="pathway-step">Authenticate with your password</div>
+                    <div class="pathway-step">Receive signed ID token + email writeback</div>
+                  </div>
+                  <button class="pathway-cta btn-blue" onclick="startExistingUser()" aria-label="Sign in with Microsoft SSO">
+                    Sign in with Microsoft →
+                  </button>
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- ════════════════════════════════
-           SCREEN 3 — Token Display
-      ════════════════════════════════ -->
-      <div class="screen" id="s3" role="region" aria-label="Authentication token">
-
-        <!-- Writeback status bar -->
-        <div class="wb-bar" id="wbBar" role="status" aria-live="polite">
-          <span class="wb-spinner" id="wbSpinner" aria-hidden="true"></span>
-          <span class="wb-check" id="wbCheck" style="display:none" aria-hidden="true">✓</span>
-          <span class="wb-x"     id="wbX"     style="display:none" aria-hidden="true">✕</span>
-          <span id="wbMsg"></span>
-        </div>
-
-        <div class="tcard">
-          <div class="thdr">
-            <div>
-              <p class="eyebrow" style="margin-bottom:.3rem;">Step 3 of 3</p>
-              <h1 class="card-title" id="h3" style="font-size:1.2rem;">ID Token Received</h1>
+        <!-- ══════════════════════════════
+             SCREEN: NEW USER — Email Check
+        ══════════════════════════════ -->
+        <div class="screen" id="sNuEmail" role="region" aria-label="New User: Email verification">
+          <div class="card">
+            <div class="card-hdr">
+              <p class="eyebrow">New User · Step 1 of 3</p>
+              <h1 class="card-title" id="hNuEmail">Enter your email</h1>
+              <p class="card-sub">We'll verify your email exists in the Entra ID directory.</p>
+              <span class="pbadge entra"><span class="pbadge-dot" aria-hidden="true"></span>Verified via Microsoft Entra ID</span>
             </div>
-            <div class="tbadge" role="status" aria-label="Authentication successful">
-              <span class="pdot" aria-hidden="true"></span>Authenticated
-            </div>
-          </div>
-
-          <div class="tpanels">
-            <!-- Raw JWT -->
-            <div class="tpanel">
-              <p class="plabel">Raw JWT Token</p>
-              <div class="jwt-raw" id="jwtRaw" tabindex="0" role="region" aria-label="Raw JWT token">
-                <span class="ph" id="jwtH"></span><span class="ps">.</span><span class="pp" id="jwtP"></span><span class="ps">.</span><span class="pg" id="jwtS"></span>
+            <div class="card-body">
+              <div class="alert a-err" id="nuEmailAlert" role="alert" aria-live="assertive">
+                <em class="aico">✕</em><span id="nuEmailMsg"></span>
               </div>
-              <p style="margin-top:.6rem;font-size:.62rem;color:var(--dim);line-height:1.6;">
-                <span style="color:var(--yellow)">■</span> Header &nbsp;
-                <span style="color:var(--purple-l)">■</span> Payload &nbsp;
-                <span style="color:var(--green)">■</span> Signature
-              </p>
+              <form id="fNuEmail" novalidate aria-label="Email check form">
+                <div class="fg">
+                  <label for="nuEmailIn">Email Address</label>
+                  <div class="iw">
+                    <input type="email" id="nuEmailIn" class="fi"
+                      placeholder="you@yourtenant.onmicrosoft.com"
+                      autocomplete="email" required aria-required="true" aria-describedby="nuEmailErr" />
+                    <span class="iicon" aria-hidden="true">@</span>
+                  </div>
+                  <p class="ferr" id="nuEmailErr" role="alert"><span aria-hidden="true">✕</span> Please enter a valid email address.</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:.75rem;">
+                  <button type="submit" class="btn btn-p" id="btnNuEmail">
+                    <span class="spin" aria-hidden="true"></span><span class="lbl">Check Email</span>
+                  </button>
+                  <button type="button" class="btn btn-g" onclick="goHome()" aria-label="Back to home">← Back</button>
+                </div>
+              </form>
             </div>
-            <!-- Decoded claims -->
-            <div class="tpanel">
-              <p class="plabel">Decoded Claims</p>
-              <dl class="claims" id="claims" aria-label="Decoded token claims"></dl>
-            </div>
-          </div>
-
-          <div class="tfooter">
-            <p class="tfnote">⚠ ID tokens are sensitive — never expose publicly or store in localStorage.</p>
-            <button class="btn btn-g" id="soBtn" style="width:auto;padding:.55rem 1.25rem;font-size:.68rem;" aria-label="Sign out">Sign Out</button>
           </div>
         </div>
-      </div>
 
+        <!-- ══════════════════════════════
+             SCREEN: NEW USER — Login
+        ══════════════════════════════ -->
+        <div class="screen" id="sNuLogin" role="region" aria-label="New User: Login">
+          <div class="card">
+            <div class="card-hdr">
+              <p class="eyebrow">New User · Step 2 of 3</p>
+              <h1 class="card-title" id="hNuLogin">Sign in</h1>
+              <p class="card-sub">Email verified. Enter your username and password.</p>
+              <span class="pbadge supa"><span class="pbadge-dot" aria-hidden="true"></span>Authenticated via Supabase</span>
+            </div>
+            <div class="card-body">
+              <div class="alert a-info show" id="nuLoginBadge" role="status">
+                <em class="aico">✓</em><span>Entra ID verified: <strong id="nuLoginEmail"></strong></span>
+              </div>
+              <div class="alert a-err" id="nuLoginAlert" role="alert" aria-live="assertive">
+                <em class="aico">✕</em><span id="nuLoginMsg"></span>
+              </div>
+              <form id="fNuLogin" novalidate aria-label="New user login form">
+                <div class="fg">
+                  <label for="nuUsername">Username</label>
+                  <div class="iw">
+                    <input type="text" id="nuUsername" class="fi" placeholder="john.doe"
+                      autocomplete="username" required aria-required="true" aria-describedby="nuUsernameErr" />
+                    <span class="iicon" aria-hidden="true">⌘</span>
+                  </div>
+                  <p class="ferr" id="nuUsernameErr" role="alert"><span aria-hidden="true">✕</span> Username is required.</p>
+                </div>
+                <div class="fg">
+                  <label for="nuPassword">Password</label>
+                  <div class="iw">
+                    <input type="password" id="nuPassword" class="fi" placeholder="••••••••"
+                      autocomplete="current-password" required aria-required="true" aria-describedby="nuPasswordErr" />
+                    <span class="iicon" aria-hidden="true">⚿</span>
+                  </div>
+                  <p class="ferr" id="nuPasswordErr" role="alert"><span aria-hidden="true">✕</span> Password is required.</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:.75rem;">
+                  <button type="submit" class="btn btn-p" id="btnNuLogin">
+                    <span class="spin" aria-hidden="true"></span><span class="lbl">Sign In</span>
+                  </button>
+                  <button type="button" class="btn btn-g" id="nuBackBtn" aria-label="Back to email check">← Back</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════
+             SCREEN: EXISTING USER — SSO Loading
+        ══════════════════════════════ -->
+        <div class="screen" id="sEuSso" role="region" aria-label="Existing User: Microsoft SSO">
+          <div class="sso-card" aria-live="polite">
+            <div class="sso-spinner" aria-hidden="true"></div>
+            <p class="sso-title" id="ssoTitle">Opening Microsoft Sign-In…</p>
+            <p class="sso-sub" id="ssoSub">A Microsoft login pop-up will appear. Please complete sign-in there.</p>
+            <button class="btn btn-g" style="max-width:200px;margin-top:.5rem;" onclick="goHome()" aria-label="Cancel and go back">Cancel</button>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════
+             SCREEN: EXISTING USER — Password
+        ══════════════════════════════ -->
+        <div class="screen" id="sEuLogin" role="region" aria-label="Existing User: Password verification">
+          <div class="card">
+            <div class="card-hdr eu-hdr">
+              <p class="eyebrow">Existing User · Step 2 of 3</p>
+              <h1 class="card-title" id="hEuLogin">Enter your password</h1>
+              <p class="card-sub">SSO successful. Authenticate your credentials to continue.</p>
+              <span class="pbadge msal"><span class="pbadge-dot" aria-hidden="true"></span>SSO via Microsoft Entra ID</span>
+            </div>
+            <div class="card-body">
+              <div class="alert a-blue show" id="euSsoBadge" role="status">
+                <em class="aico">✓</em>
+                <span>Signed in as: <strong id="euSsoName"></strong> (<span id="euSsoEmail"></span>)</span>
+              </div>
+              <div class="alert a-err" id="euLoginAlert" role="alert" aria-live="assertive">
+                <em class="aico">✕</em><span id="euLoginMsg"></span>
+              </div>
+              <form id="fEuLogin" novalidate aria-label="Existing user password form">
+                <div class="fg">
+                  <label for="euUsername">Username</label>
+                  <div class="iw">
+                    <input type="text" id="euUsername" class="fi" readonly
+                      aria-label="Username extracted from SSO" aria-describedby="euUsernameNote" />
+                    <span class="iicon" aria-hidden="true">⌘</span>
+                  </div>
+                  <p id="euUsernameNote" style="font-size:.65rem;color:var(--muted);margin-top:.3rem;">Extracted from your Microsoft account UPN.</p>
+                </div>
+                <div class="fg">
+                  <label for="euPassword">Password</label>
+                  <div class="iw">
+                    <input type="password" id="euPassword" class="fi" placeholder="••••••••"
+                      autocomplete="current-password" required aria-required="true" aria-describedby="euPasswordErr" />
+                    <span class="iicon" aria-hidden="true">⚿</span>
+                  </div>
+                  <p class="ferr" id="euPasswordErr" role="alert"><span aria-hidden="true">✕</span> Password is required.</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:.75rem;">
+                  <button type="submit" class="btn btn-blue" id="btnEuLogin">
+                    <span class="spin" aria-hidden="true"></span><span class="lbl">Verify &amp; Continue</span>
+                  </button>
+                  <button type="button" class="btn btn-g" onclick="goHome()" aria-label="Cancel and go back to home">Cancel</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════
+             SCREEN: TOKEN DISPLAY (shared)
+        ══════════════════════════════ -->
+        <div class="screen" id="sToken" role="region" aria-label="Authentication token">
+          <div class="wb-bar wide" id="wbBar" role="status" aria-live="polite">
+            <span class="wb-spinner" id="wbSpinner" aria-hidden="true"></span>
+            <span class="wb-check"   id="wbCheck"   style="display:none" aria-hidden="true">✓</span>
+            <span class="wb-x"       id="wbX"       style="display:none" aria-hidden="true">✕</span>
+            <span id="wbMsg"></span>
+          </div>
+          <div class="tcard">
+            <div class="thdr">
+              <div>
+                <p class="eyebrow" style="margin-bottom:.3rem;" id="tokenEyebrow">Step 3 of 3</p>
+                <h1 class="card-title" id="hToken" style="font-size:1.2rem;">ID Token Received</h1>
+              </div>
+              <div class="tbadge" role="status" aria-label="Authenticated">
+                <span class="pdot" aria-hidden="true"></span>Authenticated
+              </div>
+            </div>
+            <div class="tpanels">
+              <div class="tpanel">
+                <p class="plabel">Raw JWT Token</p>
+                <div class="jwt-raw" id="jwtRaw" tabindex="0" role="region" aria-label="Raw JWT">
+                  <span class="ph" id="jwtH"></span><span class="ps">.</span><span class="pp" id="jwtP"></span><span class="ps">.</span><span class="pg" id="jwtS"></span>
+                </div>
+                <p style="margin-top:.6rem;font-size:.62rem;color:var(--dim);line-height:1.6;">
+                  <span style="color:var(--yellow)">■</span> Header &nbsp;
+                  <span style="color:var(--purple-l)">■</span> Payload &nbsp;
+                  <span style="color:var(--green)">■</span> Signature
+                </p>
+              </div>
+              <div class="tpanel">
+                <p class="plabel">Decoded Claims</p>
+                <dl class="claims" id="claims" aria-label="Decoded token claims"></dl>
+              </div>
+            </div>
+            <div class="tfooter">
+              <p class="tfnote">⚠ ID tokens are sensitive — never expose publicly or store in localStorage.</p>
+              <button class="btn btn-g" id="soBtn" style="width:auto;padding:.55rem 1.25rem;font-size:.68rem;" aria-label="Sign out">Sign Out</button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /slideWrap -->
     </main>
   </div><!-- /shell -->
 
-  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-  /* ══ State ══ */
-  let supa = null;
-  let verifiedEmail = '';
+  <script>
+  /* ══════════════════════════════════════
+     State
+  ══════════════════════════════════════ */
+  let supa          = null;
+  let msalInstance  = null;
+  let verifiedEmail = '';   // Entra email (from check or SSO)
+  let currentFlow   = '';   // 'nu' | 'eu'
+  let currentScreen = 'sHome';
 
-  /* ══ Shortcuts ══ */
-  const $ = id => document.getElementById(id);
+  /* ══════════════════════════════════════
+     Utilities
+  ══════════════════════════════════════ */
+  const $  = id => document.getElementById(id);
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const isEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  function showAlert(el,msgEl,msg,show=true){el.classList.toggle('show',show);if(msgEl)msgEl.textContent=msg;}
+  function load(btn,on){btn.classList.toggle('loading',on);btn.disabled=on;}
 
-  /* ══ Screen management ══ */
-  function goScreen(n) {
-    ['s1','s2','s3'].forEach((id,i) => {
-      $(id).classList.toggle('active', i+1===n);
-      if (i+1===n) { const h=$(id).querySelector('h1'); if(h){h.tabIndex=-1;h.focus();} }
-    });
-    for(let i=1;i<=3;i++){
+  /* ══════════════════════════════════════
+     Screen transitions
+  ══════════════════════════════════════ */
+  function goScreen(id) {
+    const prev = $(currentScreen);
+    const next = $(id);
+    if (!next || id === currentScreen) return;
+
+    prev.classList.add('slide-out-left');
+    setTimeout(() => {
+      prev.classList.remove('active','slide-out-left');
+      next.classList.add('active');
+      // trigger reflow then animate in
+      next.offsetHeight;
+      const h = next.querySelector('h1,[role="heading"]');
+      if (h) { h.tabIndex=-1; h.focus(); }
+      currentScreen = id;
+    }, 180);
+
+    // Hide/show config panels and step dots
+    const showConfig = (id === 'sHome');
+    $('configPanels').style.display = showConfig ? '' : 'none';
+
+    const showSteps = (id !== 'sHome');
+    $('stepBar').classList.toggle('visible', showSteps);
+    $('flowBadge').classList.toggle('show', showSteps);
+  }
+
+  function updateSteps(n, max=3) {
+    for(let i=1;i<=max;i++){
       const d=$(`d${i}`); d.classList.remove('active','done');
       if(i<n) d.classList.add('done'); if(i===n) d.classList.add('active');
     }
     $('stepBar').setAttribute('aria-valuenow',n);
-    $('stepBar').setAttribute('aria-label',`Step ${n} of 3: ${['Email Check','Login','Token'][n-1]}`);
+    $('stepBar').setAttribute('aria-label',`Step ${n} of ${max}`);
   }
 
-  function load(btn,on){btn.classList.toggle('loading',on);btn.disabled=on;}
-  function alert2(el,msgEl,msg,show=true){el.classList.toggle('show',show);if(msgEl)msgEl.textContent=msg;}
+  function setFlow(flow) {
+    currentFlow = flow;
+    const badge = $('flowBadge');
+    badge.className = 'flow-badge show ' + flow;
+    $('flowLabel').textContent = flow==='nu' ? 'New User' : 'Existing User';
+  }
 
-  /* ══ Setup guide ══ */
+  /* ══════════════════════════════════════
+     Home
+  ══════════════════════════════════════ */
+  function goHome() {
+    verifiedEmail = '';
+    currentFlow   = '';
+    goScreen('sHome');
+    $('stepBar').classList.remove('visible');
+    $('flowBadge').classList.remove('show');
+    $('configPanels').style.display = '';
+  }
+
+  $('homeBtn').addEventListener('click', goHome);
+
+  /* ══════════════════════════════════════
+     Setup guide
+  ══════════════════════════════════════ */
   function gTab(name){
-    ['Entra','Supabase','Worker'].forEach(t=>{
+    ['Entra','Supabase','Worker','Msal'].forEach(t=>{
       $(`t${t}`).classList.toggle('active',t===name);
       $(`t${t}`).setAttribute('aria-selected',String(t===name));
       $(`p${t}`).classList.toggle('active',t===name);
@@ -558,42 +912,46 @@ Username: tom.wright | Password: Pass@7890</div>
     this.querySelector('.chev').textContent=open?'▲':'▼';
   });
   function cpyCode(id,btn){
-    const cl=$(id).cloneNode(true); cl.querySelectorAll('button').forEach(b=>b.remove());
+    const cl=$(id).cloneNode(true);cl.querySelectorAll('button').forEach(b=>b.remove());
     navigator.clipboard.writeText(cl.textContent.trim()).then(()=>{
       btn.textContent='Copied!';btn.classList.add('copied');
       setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},2000);
     });
   }
 
-  /* ══ High contrast ══ */
+  /* ══════════════════════════════════════
+     High contrast
+  ══════════════════════════════════════ */
   $('hcBtn').addEventListener('click',function(){
     this.setAttribute('aria-pressed',String(document.body.classList.toggle('hc')));
   });
 
-  /* ══ Config: Worker URL ══ */
+  /* ══════════════════════════════════════
+     Config: Worker URL
+  ══════════════════════════════════════ */
   let wTimer;
   $('workerUrl').addEventListener('input',()=>{
-    clearTimeout(wTimer); wTimer=setTimeout(()=>{
+    clearTimeout(wTimer);wTimer=setTimeout(()=>{
       const u=$('workerUrl').value.trim();
       const ok=u.startsWith('https://')&&u.includes('workers.dev');
       $('wDot').className='sdot2 '+(u?(ok?'on':'off'):'idle');
-      $('wTxt').textContent=!u?'Paste your Cloudflare Worker URL to connect':ok?'✓ Worker URL set':'✕ Should be a valid workers.dev URL';
+      $('wTxt').textContent=!u?'Paste your Cloudflare Worker URL':ok?'✓ Worker URL set':'✕ Should be a valid workers.dev URL';
       $('wTxt').style.color=!u?'var(--muted)':ok?'var(--green)':'var(--red)';
     },400);
   });
 
-  /* ══ Config: Supabase ══ */
+  /* ══════════════════════════════════════
+     Config: Supabase
+  ══════════════════════════════════════ */
   let sbTimer;
   ['sbUrl','sbKey'].forEach(id=>{
     $(id).addEventListener('input',()=>{
-      clearTimeout(sbTimer); sbTimer=setTimeout(()=>{
-        const url=$('sbUrl').value.trim(), key=$('sbKey').value.trim();
+      clearTimeout(sbTimer);sbTimer=setTimeout(()=>{
+        const url=$('sbUrl').value.trim(),key=$('sbKey').value.trim();
         if(!url||!key){$('sbDot').className='sdot2 idle';supa=null;$('sbTxt').textContent='Enter Supabase URL and anon key';$('sbTxt').style.color='var(--muted)';return;}
         try{
           supa=supabase.createClient(url,key);
-          $('sbDot').className='sdot2 on';
-          $('sbTxt').textContent='✓ Supabase connected';
-          $('sbTxt').style.color='var(--green)';
+          $('sbDot').className='sdot2 on';$('sbTxt').textContent='✓ Supabase connected';$('sbTxt').style.color='var(--green)';
         }catch{
           $('sbDot').className='sdot2 off';$('sbTxt').textContent='✕ Invalid credentials';$('sbTxt').style.color='var(--red)';supa=null;
         }
@@ -601,140 +959,230 @@ Username: tom.wright | Password: Pass@7890</div>
     });
   });
 
-  /* ══ Worker helper ══ */
-  async function callWorker(action, payload) {
-    const url = $('workerUrl').value.trim();
-    if (!url) throw new Error('Please paste your Cloudflare Worker URL into the config panel above.');
-    const res = await fetch(url, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action, ...payload }),
+  /* ══════════════════════════════════════
+     Config: MSAL
+  ══════════════════════════════════════ */
+  let msalTimer;
+  ['msalTenant','msalClient'].forEach(id=>{
+    $(id).addEventListener('input',()=>{
+      clearTimeout(msalTimer);msalTimer=setTimeout(()=>{
+        const tid=$('msalTenant').value.trim(), cid=$('msalClient').value.trim();
+        const ok=tid&&cid;
+        $('msalDot').className='sdot2 '+(ok?'on':'idle');
+        $('msalTxt').textContent=ok?'✓ MSAL configured — ready for Existing User SSO':'Enter Tenant ID and Client ID to enable Existing User SSO';
+        $('msalTxt').style.color=ok?'var(--green)':'var(--muted)';
+        if(ok) initMsal(tid,cid);
+      },500);
     });
-    const data = await res.json().catch(()=>({}));
-    if (!res.ok) throw new Error(data.error || data.detail || `Worker error (HTTP ${res.status})`);
+  });
+
+  function initMsal(tenantId, clientId) {
+    try {
+      msalInstance = new msal.PublicClientApplication({
+        auth: {
+          clientId,
+          authority: `https://login.microsoftonline.com/${tenantId}`,
+          redirectUri: window.location.origin + window.location.pathname,
+        },
+        cache: { cacheLocation: 'sessionStorage' },
+      });
+    } catch(e) {
+      console.error('MSAL init error:', e);
+      msalInstance = null;
+    }
+  }
+
+  /* ══════════════════════════════════════
+     Worker helper
+  ══════════════════════════════════════ */
+  async function callWorker(action, payload) {
+    const url=$('workerUrl').value.trim();
+    if(!url) throw new Error('Please paste your Cloudflare Worker URL in the config panel above.');
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...payload})});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||data.detail||`Worker error (HTTP ${res.status})`);
     return data;
   }
 
-  /* ══ SCREEN 1: Entra email check ══ */
-  $('f1').addEventListener('submit', async function(e){
+  /* ══════════════════════════════════════
+     NEW USER FLOW
+  ══════════════════════════════════════ */
+  function startNewUser() {
+    setFlow('nu');
+    updateSteps(1);
+    showAlert($('nuEmailAlert'),$('nuEmailMsg'),'',false);
+    $('nuEmailIn').value='';
+    goScreen('sNuEmail');
+    setTimeout(()=>$('nuEmailIn').focus(),250);
+  }
+
+  // Step 1: Email check
+  $('fNuEmail').addEventListener('submit', async function(e){
     e.preventDefault();
-    alert2($('e1Alert'),$('e1Msg'),'',false);
-    $('emailErr').classList.remove('show');
-    const email=$('emailIn').value.trim();
-    if(!isEmail(email)){$('emailErr').classList.add('show');$('emailIn').focus();return;}
-    const btn=$('btn1'); load(btn,true);
+    showAlert($('nuEmailAlert'),$('nuEmailMsg'),'',false);
+    $('nuEmailErr').classList.remove('show');
+    const email=$('nuEmailIn').value.trim();
+    if(!isEmail(email)){$('nuEmailErr').classList.add('show');$('nuEmailIn').focus();return;}
+    const btn=$('btnNuEmail'); load(btn,true);
     try{
-      const r = await callWorker('check-email',{email});
+      const r=await callWorker('check-email',{email});
       if(!r.found){
-        alert2($('e1Alert'),$('e1Msg'),'This email address was not found in the directory. Please check for typos or contact your administrator.');
+        showAlert($('nuEmailAlert'),$('nuEmailMsg'),'This email address was not found in the Entra ID directory. Please check for typos or contact your administrator.');
       } else {
         verifiedEmail=email;
-        $('e2Email').textContent=email;
-        $('usernameIn').value='';
-        $('passwordIn').value='';
-        alert2($('e2Alert'),$('e2Msg'),'',false);
-        goScreen(2);
-        setTimeout(()=>$('usernameIn').focus(),100);
+        $('nuLoginEmail').textContent=email;
+        $('nuUsername').value=''; $('nuPassword').value='';
+        showAlert($('nuLoginAlert'),$('nuLoginMsg'),'',false);
+        updateSteps(2);
+        goScreen('sNuLogin');
+        setTimeout(()=>$('nuUsername').focus(),250);
       }
-    }catch(err){alert2($('e1Alert'),$('e1Msg'),err.message);}
+    }catch(err){showAlert($('nuEmailAlert'),$('nuEmailMsg'),err.message);}
     finally{load(btn,false);}
   });
 
-  /* ══ SCREEN 2: Username + password vs Supabase table ══ */
-  $('backBtn').addEventListener('click',()=>{
-    alert2($('e2Alert'),$('e2Msg'),'',false);
-    goScreen(1); $('emailIn').focus();
+  $('nuBackBtn').addEventListener('click',()=>{
+    showAlert($('nuLoginAlert'),$('nuLoginMsg'),'',false);
+    updateSteps(1);
+    goScreen('sNuEmail');
   });
 
-  $('f2').addEventListener('submit', async function(e){
+  // Step 2: DB login
+  $('fNuLogin').addEventListener('submit', async function(e){
     e.preventDefault();
-    alert2($('e2Alert'),$('e2Msg'),'',false);
-    $('usernameErr').classList.remove('show');
-    $('passwordErr').classList.remove('show');
-
-    const username=$('usernameIn').value.trim();
-    const password=$('passwordIn').value;
-    if(!username){$('usernameErr').classList.add('show');$('usernameIn').focus();return;}
-    if(!password){$('passwordErr').classList.add('show');$('passwordIn').focus();return;}
-    if(!supa){alert2($('e2Alert'),$('e2Msg'),'Please configure your Supabase credentials above.');return;}
-
-    const btn=$('btn2'); load(btn,true);
+    showAlert($('nuLoginAlert'),$('nuLoginMsg'),'',false);
+    $('nuUsernameErr').classList.remove('show');
+    $('nuPasswordErr').classList.remove('show');
+    const username=$('nuUsername').value.trim(), password=$('nuPassword').value;
+    if(!username){$('nuUsernameErr').classList.add('show');$('nuUsername').focus();return;}
+    if(!password){$('nuPasswordErr').classList.add('show');$('nuPassword').focus();return;}
+    if(!supa){showAlert($('nuLoginAlert'),$('nuLoginMsg'),'Please configure your Supabase credentials above.');return;}
+    const btn=$('btnNuLogin'); load(btn,true);
     try{
-      // Query user_credentials table
-      const {data, error} = await supa
-        .from('user_credentials')
-        .select('*')
-        .eq('username', username)
-        .eq('password', password)
-        .maybeSingle();
-
+      const {data,error}=await supa.from('user_credentials').select('*').eq('username',username).eq('password',password).maybeSingle();
       if(error) throw error;
-      if(!data){
-        alert2($('e2Alert'),$('e2Msg'),'Invalid username or password. Please try again.');
-        return;
-      }
-
-      // Authentication successful — run writeback + token generation in parallel
-      goScreen(3);
+      if(!data){showAlert($('nuLoginAlert'),$('nuLoginMsg'),'Invalid username or password. Please try again.');return;}
+      updateSteps(3);
+      goScreen('sToken');
+      $('tokenEyebrow').textContent='New User · Step 3 of 3';
       await postLoginActions(data);
+    }catch(err){showAlert($('nuLoginAlert'),$('nuLoginMsg'),err.message||'Authentication error.');}
+    finally{load(btn,false);}
+  });
+
+  /* ══════════════════════════════════════
+     EXISTING USER FLOW
+  ══════════════════════════════════════ */
+  async function startExistingUser() {
+    if(!msalInstance){
+      alert('Please fill in your MSAL Tenant ID and Client ID in the configuration panel above first.');
+      return;
+    }
+    setFlow('eu');
+    updateSteps(1);
+    $('ssoTitle').textContent='Opening Microsoft Sign-In…';
+    $('ssoSub').textContent='A Microsoft login pop-up will appear. Please complete sign-in there.';
+    goScreen('sEuSso');
+
+    try{
+      const result = await msalInstance.loginPopup({
+        scopes: ['openid','profile','email','User.Read'],
+        prompt: 'select_account',
+      });
+
+      const upn      = result.account.username;          // e.g. john.doe@tenant.com
+      const username = upn.split('@')[0];                 // → john.doe
+      const name     = result.account.name || upn;
+
+      verifiedEmail = upn;
+
+      // Pre-fill existing user login screen
+      $('euUsername').value    = username;
+      $('euSsoName').textContent = name;
+      $('euSsoEmail').textContent = upn;
+      $('euPassword').value    = '';
+      showAlert($('euLoginAlert'),$('euLoginMsg'),'',false);
+
+      updateSteps(2);
+      goScreen('sEuLogin');
+      setTimeout(()=>$('euPassword').focus(),250);
 
     }catch(err){
-      alert2($('e2Alert'),$('e2Msg'),err.message||'Authentication error. Please try again.');
-    }finally{load(btn,false);}
+      if(err.errorCode==='user_cancelled'||err.message?.includes('cancelled')){
+        goHome(); return;
+      }
+      $('ssoTitle').textContent='Sign-In Failed';
+      $('ssoSub').textContent=err.message||'Microsoft SSO failed. Please try again.';
+    }
+  }
+
+  // Existing user password step
+  $('fEuLogin').addEventListener('submit', async function(e){
+    e.preventDefault();
+    showAlert($('euLoginAlert'),$('euLoginMsg'),'',false);
+    $('euPasswordErr').classList.remove('show');
+    const username=$('euUsername').value.trim(), password=$('euPassword').value;
+    if(!password){$('euPasswordErr').classList.add('show');$('euPassword').focus();return;}
+    if(!supa){showAlert($('euLoginAlert'),$('euLoginMsg'),'Please configure your Supabase credentials above.');return;}
+    const btn=$('btnEuLogin'); load(btn,true);
+    try{
+      const {data,error}=await supa.from('user_credentials').select('*').eq('username',username).eq('password',password).maybeSingle();
+      if(error) throw error;
+      if(!data){showAlert($('euLoginAlert'),$('euLoginMsg'),'Invalid password. Please try again.');return;}
+      updateSteps(3);
+      goScreen('sToken');
+      $('tokenEyebrow').textContent='Existing User · Step 3 of 3';
+      await postLoginActions(data);
+    }catch(err){showAlert($('euLoginAlert'),$('euLoginMsg'),err.message||'Authentication error.');}
+    finally{load(btn,false);}
   });
 
-  /* ══ Post-login: writeback + generate token ══ */
-  async function postLoginActions(userData) {
-    const wbBar=$('wbBar'), wbMsg=$('wbMsg');
-    const wbSpin=$('wbSpinner'), wbCheck=$('wbCheck'), wbX=$('wbX');
-
-    // Show writeback bar
+  /* ══════════════════════════════════════
+     Post-login: writeback + JWT (shared)
+  ══════════════════════════════════════ */
+  async function postLoginActions(userData){
+    const wbBar=$('wbBar'),wbMsg=$('wbMsg');
+    const wbSpin=$('wbSpinner'),wbCheck=$('wbCheck'),wbX=$('wbX');
     wbBar.classList.add('show');
-    wbBar.className='wb-bar show';
     wbSpin.style.display='';wbCheck.style.display='none';wbX.style.display='none';
-    wbMsg.textContent=`Writing personal email to Entra ID profile...`;
+    wbMsg.textContent='Writing personal email to Entra ID profile…';
+    wbBar.style.cssText='';
 
-    let writebackOk = false;
+    let writebackOk=false;
     try{
-      await callWorker('writeback-email',{
-        entraEmail:    verifiedEmail,
-        personalEmail: userData.personal_email,
-      });
+      await callWorker('writeback-email',{entraEmail:verifiedEmail,personalEmail:userData.personal_email});
       writebackOk=true;
       wbSpin.style.display='none';wbCheck.style.display='';
-      wbMsg.textContent=`✓ Personal email written to Entra ID otherMails successfully`;
+      wbMsg.textContent='✓ Personal email written to Entra ID otherMails successfully';
       wbBar.style.borderColor='rgba(52,211,153,.4)';wbBar.style.background='rgba(52,211,153,.05)';
-      $('wbMsg').style.color='var(--green)';
+      wbMsg.style.color='var(--green)';
     }catch(err){
       wbSpin.style.display='none';wbX.style.display='';
       wbMsg.textContent=`Entra writeback failed: ${err.message}`;
       wbBar.style.borderColor='rgba(248,113,113,.4)';wbBar.style.background='rgba(248,113,113,.05)';
-      $('wbMsg').style.color='var(--red)';
+      wbMsg.style.color='var(--red)';
     }
 
-    // Generate JWT regardless of writeback result
     try{
-      const {token} = await callWorker('generate-token',{
-        user:{
-          username:        userData.username,
-          firstName:       userData.first_name,
-          lastName:        userData.last_name,
-          identityStrength:userData.identity_strength,
-          personalEmail:   userData.personal_email,
-          entraEmail:      verifiedEmail,
-        }
-      });
-      renderToken(token, userData, writebackOk);
+      const {token}=await callWorker('generate-token',{user:{
+        username:        userData.username,
+        firstName:       userData.first_name,
+        lastName:        userData.last_name,
+        identityStrength:userData.identity_strength,
+        personalEmail:   userData.personal_email,
+        entraEmail:      verifiedEmail,
+      }});
+      renderToken(token,userData,writebackOk);
     }catch(err){
-      // Show error in token area
       $('claims').innerHTML=`<div class="crow"><dt class="ckey">Error</dt><dd class="cval" style="color:var(--red)">${esc(err.message)}</dd></div>`;
     }
   }
 
-  /* ══ SCREEN 3: Render JWT ══ */
+  /* ══════════════════════════════════════
+     Token rendering
+  ══════════════════════════════════════ */
   function decodeJWT(tok){
-    const p=tok.split('.');
-    if(p.length!==3)return null;
+    const p=tok.split('.');if(p.length!==3)return null;
     try{
       const d=s=>JSON.parse(atob(s.replace(/-/g,'+').replace(/_/g,'/')+'=='.slice(0,(4-s.length%4)%4)));
       return{header:d(p[0]),payload:d(p[1]),raw:{h:p[0],p:p[1],s:p[2]}};
@@ -745,23 +1193,19 @@ Username: tom.wright | Password: Pass@7890</div>
     return new Date(u*1000).toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',timeZoneName:'short'});
   }
   function strengthClass(v){
-    if(!v)return'mu';
-    const s=v.toLowerCase();
+    if(!v)return'mu';const s=v.toLowerCase();
     return s==='high'?'hi':s==='medium'?'me':s==='low'?'lo':'mu';
   }
 
-  function renderToken(rawJwt, userData, writebackOk){
-    const dec=decodeJWT(rawJwt); if(!dec)return;
+  function renderToken(rawJwt,userData,writebackOk){
+    const dec=decodeJWT(rawJwt);if(!dec)return;
     const p=dec.payload;
-
-    // Raw JWT
     $('jwtH').textContent=dec.raw.h;
     $('jwtP').textContent=dec.raw.p;
     $('jwtS').textContent=dec.raw.s;
-
-    // Claims
     const claims=[
-      {key:'Auth Result',       value:'SUCCESS',                      cls:'ok'},
+      {key:'Auth Result',       value:'SUCCESS',                                             cls:'ok'},
+      {key:'Flow',              value:currentFlow==='nu'?'New User':'Existing User (SSO)',   cls:'mu'},
       {key:'First Name',        value:userData.first_name||p.first_name||'N/A'},
       {key:'Last Name',         value:userData.last_name ||p.last_name ||'N/A'},
       {key:'Username',          value:p.sub||'N/A'},
@@ -770,12 +1214,41 @@ Username: tom.wright | Password: Pass@7890</div>
       {key:'Identity Strength', value:p.identity_strength||'N/A', cls:strengthClass(p.identity_strength)},
       {key:'Entra Writeback',   value:writebackOk?'otherMails updated ✓':'Failed — see status bar', cls:writebackOk?'ok':'lo'},
       {key:'Audience (aud)',    value:Array.isArray(p.aud)?p.aud.join(', '):(p.aud||'N/A')},
-      {key:'Issuer (iss)',      value:p.iss||'N/A',  cls:'mu'},
-      {key:'Subject (sub)',     value:p.sub||'N/A',  cls:'mu'},
+      {key:'Issuer (iss)',      value:p.iss||'N/A', cls:'mu'},
+      {key:'Subject (sub)',     value:p.sub||'N/A', cls:'mu'},
       {key:'Issued At (iat)',   value:fmtTime(p.iat)},
       {key:'Expires At (exp)',  value:fmtTime(p.exp)},
     ];
-
-    const list=$('claims'); list.innerHTML='';
+    const list=$('claims');list.innerHTML='';
     claims.forEach(({key,value,cls})=>{
-      const row=document.createElement('div'); row.classN
+      const row=document.createElement('div');row.className='crow';
+      row.innerHTML=`<dt class="ckey">${esc(key)}</dt><dd class="cval ${cls||''}">${esc(String(value))}</dd>`;
+      list.appendChild(row);
+    });
+  }
+
+  /* ══════════════════════════════════════
+     Sign out
+  ══════════════════════════════════════ */
+  $('soBtn').addEventListener('click',()=>{
+    verifiedEmail='';currentFlow='';
+    ['nuEmailIn','nuUsername','nuPassword','euPassword'].forEach(id=>$(id).value='');
+    $('wbBar').classList.remove('show');
+    goHome();
+  });
+
+  /* ══════════════════════════════════════
+     Keyboard: Escape → home
+  ══════════════════════════════════════ */
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&currentScreen!=='sHome') goHome();
+  });
+
+  /* ══════════════════════════════════════
+     Init
+  ══════════════════════════════════════ */
+  $('configPanels').style.display='';
+  goScreen('sHome');
+  </script>
+</body>
+</html>
