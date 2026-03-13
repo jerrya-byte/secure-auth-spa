@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.0/lib/msal-browser.min.js"></script>
 
   <style>
     :root {
@@ -971,24 +971,39 @@ ON CONFLICT DO NOTHING;
         $('msalDot').className='sdot2 '+(ok?'on':'idle');
         $('msalTxt').textContent=ok?'✓ MSAL configured — ready for Existing User SSO':'Enter Tenant ID and Client ID to enable Existing User SSO';
         $('msalTxt').style.color=ok?'var(--green)':'var(--muted)';
-        if(ok) initMsal(tid,cid);
+        if(ok) initMsal(tid,cid).catch(()=>{});
       },500);
     });
   });
 
-  function initMsal(tenantId, clientId) {
+  async function initMsal(tenantId, clientId) {
     try {
-      msalInstance = new msal.PublicClientApplication({
+      // Handle different global names across MSAL versions
+      const PCA = (typeof msal !== 'undefined' && msal.PublicClientApplication)
+        ? msal.PublicClientApplication
+        : (typeof PublicClientApplication !== 'undefined')
+          ? PublicClientApplication
+          : null;
+
+      if (!PCA) throw new Error('MSAL library did not load — check your internet connection and try refreshing the page.');
+
+      msalInstance = new PCA({
         auth: {
           clientId,
           authority: `https://login.microsoftonline.com/${tenantId}`,
-          redirectUri: window.location.origin + window.location.pathname,
+          redirectUri: "https://jerrya-byte.github.io/secure-auth-spa/",
         },
         cache: { cacheLocation: 'sessionStorage' },
+        system: { loggerOptions: { loggerCallback: ()=>{}, piiLoggingEnabled: false } },
       });
+
+      // MSAL v3 requires initialize() before any other API call
+      await msalInstance.initialize();
+
     } catch(e) {
       console.error('MSAL init error:', e);
       msalInstance = null;
+      throw e;
     }
   }
 
@@ -1082,7 +1097,10 @@ ON CONFLICT DO NOTHING;
       return;
     }
     // Re-initialise MSAL with current values every time (safe and ensures latest values are used)
-    initMsal(tid, cid);
+    try { await initMsal(tid, cid); } catch(e) {
+      alert('MSAL failed to initialise: ' + e.message);
+      return;
+    }
     if (!msalInstance) {
       alert('MSAL could not be initialised. Please check your Tenant ID and Client ID and try again.');
       return;
