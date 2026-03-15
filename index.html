@@ -896,7 +896,7 @@ ON CONFLICT DO NOTHING;
             </div>
 
             <!-- ── FIDO2 Card ── -->
-            <div class="action-card ac-fido" role="region" aria-label="FIDO2 Security Key Registration">
+            <div class="action-card ac-fido" role="region" aria-label="FIDO2 Security Key Registration" style="display:none">
               <div class="action-card-hdr">
                 <h2 class="ac-title"><span aria-hidden="true">🔐</span> Register FIDO2 Security Key</h2>
                 <p class="ac-sub">Register a hardware security key (YubiKey, Titan, etc.) or platform authenticator (Windows Hello, Touch ID) as a passwordless sign-in method.</p>
@@ -1314,11 +1314,8 @@ ON CONFLICT DO NOTHING;
     // Show only the relevant card based on flow:
     // New User → TAP only | Existing User → FIDO2 only
     const isNewUser = currentFlow === 'nu';
-    document.querySelector('.ac-tap').style.display  = isNewUser ? '' : 'none';
+    document.querySelector('.ac-tap').style.display  = isNewUser ? ''     : 'none';
     document.querySelector('.ac-fido').style.display = isNewUser ? 'none' : '';
-
-    // Single card → full width
-    $('actionGrid').style.gridTemplateColumns = '1fr';
 
     // Reset TAP + FIDO2 UI
     resetTapUi(); resetFido();
@@ -1493,6 +1490,10 @@ ON CONFLICT DO NOTHING;
     ['nuEmailIn','nuUsername','nuPassword','euPassword'].forEach(id=>$(id).value='');
     $('wbBar').classList.remove('show');
     resetTapUi(); resetFido();
+    // Reset card visibility back to default (TAP visible, FIDO2 hidden)
+    document.querySelector('.ac-tap').style.display='';
+    document.querySelector('.ac-fido').style.display='none';
+    $('actionGrid').style.gridTemplateColumns='1fr';
     goHome();
   });
 
