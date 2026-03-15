@@ -847,7 +847,7 @@ ON CONFLICT DO NOTHING;
           </div>
 
           <!-- Two action cards -->
-          <div class="action-grid">
+          <div class="action-grid" id="actionGrid">
 
             <!-- ── TAP Card ── -->
             <div class="action-card ac-tap" role="region" aria-label="Temporary Access Pass">
@@ -1310,6 +1310,15 @@ ON CONFLICT DO NOTHING;
     // Populate user bar
     $('userBarName').textContent = `${userData.first_name} ${userData.last_name}`;
     $('userBarEmail').textContent = verifiedEmail;
+
+    // Show only the relevant card based on flow:
+    // New User → TAP only | Existing User → FIDO2 only
+    const isNewUser = currentFlow === 'nu';
+    document.querySelector('.ac-tap').style.display  = isNewUser ? '' : 'none';
+    document.querySelector('.ac-fido').style.display = isNewUser ? 'none' : '';
+
+    // Single card → full width
+    $('actionGrid').style.gridTemplateColumns = '1fr';
 
     // Reset TAP + FIDO2 UI
     resetTapUi(); resetFido();
