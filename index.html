@@ -1446,10 +1446,15 @@ ON CONFLICT DO NOTHING;
         },
       };
 
+      // Build a display name from the authenticator type if available
+      const authType = credential.authenticatorAttachment === 'platform' ? 'Platform Authenticator' : 'Security Key';
+      const keyDisplayName = `${authType} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`;
+
       const completeResult = await callWorker('fido2-complete',{
         entraEmail:          verifiedEmail,
         methodId:            beginResult.methodId,
         publicKeyCredential: credPayload,
+        displayName:         keyDisplayName,
       });
       setFidoStep(3,'done');
 
