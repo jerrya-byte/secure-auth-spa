@@ -1399,8 +1399,14 @@ ON CONFLICT DO NOTHING;
       setFidoStep(1,'done'); setFidoStep(2,'active');
 
       // Decode challenge and user.id from base64url to ArrayBuffer
+      // Override rpId and rp to match THIS origin — Entra returns its own domain
+      // which the browser will reject as it must match the current page's domain
       const publicKey = {
         ...opts,
+        rp: {
+          name: opts.rp?.name || 'SecureAuth Identity Portal',
+          id:   window.location.hostname,   // e.g. jerrya-byte.github.io
+        },
         challenge:          b64uToBuffer(opts.challenge),
         user:               { ...opts.user, id: b64uToBuffer(opts.user.id) },
         excludeCredentials: (opts.excludeCredentials||[]).map(c=>({
@@ -1432,6 +1438,7 @@ ON CONFLICT DO NOTHING;
         userId:              beginResult.userId,
         publicKeyCredential: credPayload,
         displayName:         keyDisplayName,
+        rpId:                window.location.hostname,
       });
       setFidoStep(3,'done');
 
