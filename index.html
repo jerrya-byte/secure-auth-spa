@@ -902,45 +902,41 @@ ON CONFLICT DO NOTHING;
                 <p class="ac-sub">Register a hardware security key (YubiKey, Titan, etc.) or platform authenticator (Windows Hello, Touch ID) as a passwordless sign-in method.</p>
               </div>
               <div class="action-card-body">
-                <div class="alert a-err" id="fidoAlert" role="alert" aria-live="assertive" style="display:none">
+
+                <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:1rem;margin-bottom:1.25rem;">
+                  <p style="font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--blue);margin-bottom:.6rem;">How to register your security key</p>
+                  <ol style="padding-left:1.1rem;font-size:.7rem;color:var(--muted);line-height:2.2;">
+                    <li>First, <strong style="color:var(--text)">request a TAP</strong> using the button below</li>
+                    <li>Go to <strong style="color:var(--text)">aka.ms/mysecurityinfo</strong></li>
+                    <li>Sign in using your <strong style="color:var(--text)">Temporary Access Pass</strong></li>
+                    <li>Click <strong style="color:var(--text)">+ Add sign-in method</strong></li>
+                    <li>Select <strong style="color:var(--text)">Security key</strong></li>
+                    <li>Follow the prompts to register your key</li>
+                  </ol>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:.75rem;">
+                  <button class="btn btn-yellow" id="btnFidoTap" onclick="generateFidoTap()" aria-label="Request Temporary Access Pass for FIDO2 registration">
+                    <span class="spin" aria-hidden="true"></span><span class="lbl">Step 1 — Request TAP</span>
+                  </button>
+                  <div id="fidoTapResult" style="display:none">
+                    <div class="tap-pass">
+                      <p style="font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Your Access Code</p>
+                      <div class="tap-code" id="fidoTapCode"></div>
+                      <div class="tap-meta" id="fidoTapMeta"></div>
+                      <button class="tap-copy" onclick="copyFidoTap()" aria-label="Copy TAP to clipboard">📋 Copy Code</button>
+                    </div>
+                  </div>
+                  <a href="https://aka.ms/mysecurityinfo" target="_blank" rel="noopener"
+                    class="btn btn-blue-fido"
+                    style="text-decoration:none;margin-top:.25rem;"
+                    aria-label="Open Microsoft Security Info to register security key">
+                    Step 2 — Open Security Info →
+                  </a>
+                </div>
+
+                <div class="alert a-err" id="fidoAlert" role="alert" aria-live="assertive" style="display:none;margin-top:1rem;">
                   <em class="aico">✕</em><span id="fidoMsg"></span>
-                </div>
-
-                <!-- Step indicators -->
-                <div class="fido2-status" id="fido2Steps" aria-label="Registration steps">
-                  <div class="fido2-step" id="fstep1">
-                    <span class="fstep-num">1</span>
-                    <span>Request registration challenge from Entra ID</span>
-                  </div>
-                  <div class="fido2-step" id="fstep2">
-                    <span class="fstep-num">2</span>
-                    <span>Touch your security key or use biometric when prompted</span>
-                  </div>
-                  <div class="fido2-step" id="fstep3">
-                    <span class="fstep-num">3</span>
-                    <span>Register credential with Entra ID</span>
-                  </div>
-                </div>
-
-                <!-- Success state -->
-                <div id="fidoSuccess" style="display:none">
-                  <div class="alert a-ok show" role="status">
-                    <em class="aico">✓</em>
-                    <span>Security key <strong id="fidoKeyName"></strong> registered successfully in Entra ID!</span>
-                  </div>
-                  <button class="btn btn-blue-fido" style="margin-top:.75rem;" onclick="resetFido()" aria-label="Register another key">
-                    Register Another Key
-                  </button>
-                </div>
-
-                <!-- Register button -->
-                <div id="fidoAction">
-                  <button class="btn btn-blue-fido" id="btnFido" onclick="registerFido2()" aria-label="Start FIDO2 security key registration">
-                    <span class="spin" aria-hidden="true"></span><span class="lbl">Register Security Key</span>
-                  </button>
-                  <p style="margin-top:.75rem;font-size:.65rem;color:var(--dim);line-height:1.7;">
-                    Your browser will prompt you to insert and touch your security key, or use a platform authenticator. Make sure your key is plugged in before clicking.
-                  </p>
                 </div>
 
               </div>
@@ -1354,6 +1350,38 @@ ON CONFLICT DO NOTHING;
     });
   }
 
+  /* ── FIDO2 TAP (separate instance for FIDO2 card) ── */
+  async function generateFidoTap(){
+    if(!currentUser) return;
+    const btn=$('btnFidoTap'); load(btn,true);
+    $('fidoAlert').style.display='none';
+    try{
+      const result = await callWorker('generate-tap',{
+        entraEmail:        verifiedEmail,
+        lifetimeInMinutes: 60,
+        isUsableOnce:      true,
+      });
+      $('fidoTapCode').textContent = result.temporaryAccessPass;
+      const expiry = result.startDateTime
+        ? new Date(new Date(result.startDateTime).getTime()+60*60000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
+        : '60 minutes from now';
+      $('fidoTapMeta').innerHTML=`Valid for <strong>60 minutes</strong> &nbsp;·&nbsp; Expires at <strong>${expiry}</strong><br>Single use only`;
+      $('fidoTapResult').style.display='';
+      btn.querySelector('.lbl').textContent='Regenerate TAP';
+    }catch(err){
+      $('fidoAlert').style.display='flex';
+      $('fidoMsg').textContent=err.message;
+    }finally{ load(btn,false); }
+  }
+
+  function copyFidoTap(){
+    navigator.clipboard.writeText($('fidoTapCode').textContent).then(()=>{
+      const btn=document.querySelector('#fidoTapResult .tap-copy');
+      btn.textContent='Copied!';
+      setTimeout(()=>{btn.textContent='📋 Copy Code';},2000);
+    });
+  }
+
   /* ══════════════════════════════════════
      FIDO2 — Register Security Key
   ══════════════════════════════════════ */
@@ -1505,8 +1533,8 @@ ON CONFLICT DO NOTHING;
   window.cpyCode           = cpyCode;
   window.generateTap       = generateTap;
   window.copyTap           = copyTap;
-  window.registerFido2     = registerFido2;
-  window.resetFido         = resetFido;
+  window.generateFidoTap   = generateFidoTap;
+  window.copyFidoTap       = copyFidoTap;
 
   /* ══════════════════════════════════════
      Init — auto-initialise from hardcoded config
