@@ -847,96 +847,115 @@ ON CONFLICT DO NOTHING;
           </div>
 
           <!-- Two action cards -->
-          <div class="action-grid" id="actionGrid">
+          <!-- ── Onboarding header ── -->
+          <div style="width:100%;max-width:960px;margin-bottom:1.5rem;text-align:center;">
+            <p style="font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--accent);margin-bottom:.4rem;" id="actionEyebrow">Complete Your Setup</p>
+            <h2 style="font-family:var(--sans);font-size:1.2rem;font-weight:700;color:var(--text);margin-bottom:.35rem;">Set up passwordless sign-in</h2>
+            <p style="font-size:.72rem;color:var(--muted);max-width:520px;margin:0 auto;line-height:1.8;">Follow the two steps below to enable passwordless authentication on your account. Start by requesting a Temporary Access Pass, then use it to register your security key.</p>
+          </div>
 
-            <!-- ── TAP Card ── -->
-            <div class="action-card ac-tap" role="region" aria-label="Temporary Access Pass">
+          <!-- ── Connector arrow (only shown for new user) ── -->
+          <div id="actionGrid" style="width:100%;max-width:960px;display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
+
+            <!-- ── STEP 1: TAP Card ── -->
+            <div class="action-card ac-tap" role="region" aria-label="Step 1: Request Temporary Access Pass">
               <div class="action-card-hdr">
-                <h2 class="ac-title"><span aria-hidden="true">🔑</span> Temporary Access Pass</h2>
-                <p class="ac-sub">Generate a time-limited one-time passcode to authenticate without a password or existing MFA method.</p>
+                <h2 class="ac-title">
+                  <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--yellow);color:#000;font-size:.7rem;font-weight:800;flex-shrink:0;" aria-hidden="true">1</span>
+                  Request a Temporary Access Pass
+                </h2>
+                <p class="ac-sub">Generate a one-time passcode that lets you sign in to Microsoft Security Info without a password or existing MFA.</p>
               </div>
               <div class="action-card-body">
                 <div class="alert a-err" id="tapAlert" role="alert" aria-live="assertive" style="display:none">
                   <em class="aico">✕</em><span id="tapMsg"></span>
                 </div>
 
-                <!-- TAP result (shown after generation) -->
+                <!-- Before TAP is generated -->
+                <div id="tapRequest">
+                  <div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.25rem;">
+                    <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
+                      <span style="font-size:1rem;flex-shrink:0;">⏱</span>
+                      <span style="font-size:.7rem;color:var(--muted);line-height:1.6;">Valid for <strong style="color:var(--text)">60 minutes</strong> from generation</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
+                      <span style="font-size:1rem;flex-shrink:0;">🔒</span>
+                      <span style="font-size:.7rem;color:var(--muted);line-height:1.6;"><strong style="color:var(--text)">Single use only</strong> — expires after first use</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
+                      <span style="font-size:1rem;flex-shrink:0;">✅</span>
+                      <span style="font-size:.7rem;color:var(--muted);line-height:1.6;">Use it to sign in to <strong style="color:var(--text)">aka.ms/mysecurityinfo</strong></span>
+                    </div>
+                  </div>
+                  <button class="btn btn-yellow" id="btnTap" onclick="generateTap()" aria-label="Request Temporary Access Pass">
+                    <span class="spin" aria-hidden="true"></span><span class="lbl">🔑 Request TAP</span>
+                  </button>
+                </div>
+
+                <!-- After TAP is generated -->
                 <div id="tapResult" style="display:none">
                   <div class="tap-pass">
-                    <p style="font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Your Access Code</p>
+                    <p style="font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.4rem;">Your One-Time Code</p>
                     <div class="tap-code" id="tapCode" aria-label="Temporary Access Pass code"></div>
                     <div class="tap-meta" id="tapMeta"></div>
                     <button class="tap-copy" id="tapCopyBtn" onclick="copyTap()" aria-label="Copy TAP to clipboard">📋 Copy Code</button>
                   </div>
-                  <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:1rem;margin-top:.85rem;">
-                    <p style="font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--yellow);margin-bottom:.6rem;">How to use your TAP</p>
-                    <ol style="padding-left:1.1rem;font-size:.7rem;color:var(--muted);line-height:2.2;">
-                      <li>Go to <strong style="color:var(--text)">aka.ms/mysecurityinfo</strong></li>
-                      <li>Click <strong style="color:var(--text)">+ Add sign-in method</strong></li>
-                      <li>Select <strong style="color:var(--text)">Temporary Access Pass</strong></li>
-                      <li>Enter the code shown above when prompted</li>
-                      <li>You can then register your security key or authenticator app</li>
-                    </ol>
+                  <div class="alert a-ok show" style="margin-top:.85rem;" role="status">
+                    <em class="aico">✓</em>
+                    <span>TAP generated! Copy the code above, then complete Step 2 →</span>
                   </div>
-                  <button class="btn btn-yellow" style="margin-top:.85rem;" id="btnTap" onclick="generateTap()" aria-label="Request a new Temporary Access Pass">
-                    <span class="spin" aria-hidden="true"></span><span class="lbl">Request New TAP</span>
-                  </button>
-                </div>
-
-                <!-- Initial request button -->
-                <div id="tapRequest">
-                  <p style="font-size:.72rem;color:var(--muted);line-height:1.8;margin-bottom:1.25rem;">
-                    A one-time passcode valid for <strong style="color:var(--text)">60 minutes</strong> will be generated for your account. Use it to sign in and register a new authentication method.
-                  </p>
-                  <button class="btn btn-yellow" id="btnTap" onclick="generateTap()" aria-label="Request Temporary Access Pass">
-                    <span class="spin" aria-hidden="true"></span><span class="lbl">Request TAP</span>
+                  <button class="btn btn-yellow" style="margin-top:.75rem;" id="btnTapNew" onclick="generateTap()" aria-label="Request a new TAP">
+                    <span class="spin" aria-hidden="true"></span><span class="lbl">Generate New TAP</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            <!-- ── FIDO2 Card ── -->
-            <div class="action-card ac-fido" role="region" aria-label="FIDO2 Security Key Registration" style="display:none">
+            <!-- ── STEP 2: FIDO2 Card ── -->
+            <div class="action-card ac-fido" role="region" aria-label="Step 2: Register FIDO2 Security Key">
               <div class="action-card-hdr">
-                <h2 class="ac-title"><span aria-hidden="true">🔐</span> Register FIDO2 Security Key</h2>
-                <p class="ac-sub">Register a hardware security key (YubiKey, Titan, etc.) or platform authenticator (Windows Hello, Touch ID) as a passwordless sign-in method.</p>
+                <h2 class="ac-title">
+                  <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#000;font-size:.7rem;font-weight:800;flex-shrink:0;" aria-hidden="true">2</span>
+                  Register your Security Key
+                </h2>
+                <p class="ac-sub">Use your TAP to sign in to Microsoft Security Info and register a hardware key (YubiKey, Titan) or platform authenticator (Windows Hello, Touch ID).</p>
               </div>
               <div class="action-card-body">
 
-                <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:1rem;margin-bottom:1.25rem;">
-                  <p style="font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--blue);margin-bottom:.6rem;">How to register your security key</p>
-                  <ol style="padding-left:1.1rem;font-size:.7rem;color:var(--muted);line-height:2.2;">
-                    <li>First, <strong style="color:var(--text)">request a TAP</strong> using the button below</li>
-                    <li>Go to <strong style="color:var(--text)">aka.ms/mysecurityinfo</strong></li>
-                    <li>Sign in using your <strong style="color:var(--text)">Temporary Access Pass</strong></li>
-                    <li>Click <strong style="color:var(--text)">+ Add sign-in method</strong></li>
-                    <li>Select <strong style="color:var(--text)">Security key</strong></li>
-                    <li>Follow the prompts to register your key</li>
-                  </ol>
+                <div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.25rem;">
+                  <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
+                    <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(96,165,250,.2);color:var(--blue);font-size:.65rem;font-weight:700;flex-shrink:0;margin-top:.1rem;">1</span>
+                    <span style="font-size:.7rem;color:var(--muted);line-height:1.7;">Copy your TAP code from Step 1</span>
+                  </div>
+                  <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
+                    <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(96,165,250,.2);color:var(--blue);font-size:.65rem;font-weight:700;flex-shrink:0;margin-top:.1rem;">2</span>
+                    <span style="font-size:.7rem;color:var(--muted);line-height:1.7;">Click the button below to open <strong style="color:var(--text)">Microsoft Security Info</strong></span>
+                  </div>
+                  <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
+                    <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(96,165,250,.2);color:var(--blue);font-size:.65rem;font-weight:700;flex-shrink:0;margin-top:.1rem;">3</span>
+                    <span style="font-size:.7rem;color:var(--muted);line-height:1.7;">Sign in using your <strong style="color:var(--text)">Temporary Access Pass</strong> when prompted</span>
+                  </div>
+                  <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
+                    <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(96,165,250,.2);color:var(--blue);font-size:.65rem;font-weight:700;flex-shrink:0;margin-top:.1rem;">4</span>
+                    <span style="font-size:.7rem;color:var(--muted);line-height:1.7;">Click <strong style="color:var(--text)">+ Add sign-in method</strong> → select <strong style="color:var(--text)">Security key</strong> → follow the prompts</span>
+                  </div>
                 </div>
 
-                <div style="display:flex;flex-direction:column;gap:.75rem;">
-                  <button class="btn btn-yellow" id="btnFidoTap" onclick="generateFidoTap()" aria-label="Request Temporary Access Pass for FIDO2 registration">
-                    <span class="spin" aria-hidden="true"></span><span class="lbl">Step 1 — Request TAP</span>
-                  </button>
-                  <div id="fidoTapResult" style="display:none">
-                    <div class="tap-pass">
-                      <p style="font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Your Access Code</p>
-                      <div class="tap-code" id="fidoTapCode"></div>
-                      <div class="tap-meta" id="fidoTapMeta"></div>
-                      <button class="tap-copy" onclick="copyFidoTap()" aria-label="Copy TAP to clipboard">📋 Copy Code</button>
-                    </div>
-                  </div>
-                  <a href="https://aka.ms/mysecurityinfo" target="_blank" rel="noopener"
-                    class="btn btn-blue-fido"
-                    style="text-decoration:none;margin-top:.25rem;"
-                    aria-label="Open Microsoft Security Info to register security key">
-                    Step 2 — Open Security Info →
-                  </a>
-                </div>
+                <a href="https://aka.ms/mysecurityinfo" target="_blank" rel="noopener"
+                  class="btn btn-blue-fido"
+                  style="text-decoration:none;"
+                  aria-label="Open Microsoft Security Info to register security key">
+                  🔐 Open Security Info →
+                </a>
 
                 <div class="alert a-err" id="fidoAlert" role="alert" aria-live="assertive" style="display:none;margin-top:1rem;">
                   <em class="aico">✕</em><span id="fidoMsg"></span>
+                </div>
+
+                <!-- Hidden elements needed by resetFido -->
+                <div id="fidoTapResult" style="display:none">
+                  <div class="tap-code" id="fidoTapCode"></div>
+                  <div class="tap-meta" id="fidoTapMeta"></div>
                 </div>
 
               </div>
@@ -1311,14 +1330,17 @@ ON CONFLICT DO NOTHING;
     $('tapResult').style.display='none';
     $('tapRequest').style.display='';
     $('tapAlert').style.display='none';
-    const btn=$('btnTap'); if(btn){btn.classList.remove('loading');btn.disabled=false;}
+    ['btnTap','btnTapNew'].forEach(id=>{
+      const btn=$(id); if(btn){btn.classList.remove('loading');btn.disabled=false;}
+    });
   }
 
   async function generateTap(){
     if(!currentUser) return;
-    // There are two btnTap buttons (one in tapRequest, one in tapResult)
-    // Disable both to prevent double-clicks
-    document.querySelectorAll('#btnTap').forEach(b=>{ b.classList.add('loading'); b.disabled=true; });
+    // Disable all TAP buttons to prevent double-clicks
+    ['btnTap','btnTapNew'].forEach(id=>{
+      const b=$(id); if(b){b.classList.add('loading');b.disabled=true;}
+    });
     $('tapAlert').style.display='none';
     try{
       const result = await callWorker('generate-tap',{
@@ -1339,7 +1361,9 @@ ON CONFLICT DO NOTHING;
       $('tapAlert').style.display='flex';
       $('tapMsg').textContent=err.message;
     }finally{
-      document.querySelectorAll('#btnTap').forEach(b=>{ b.classList.remove('loading'); b.disabled=false; });
+      ['btnTap','btnTapNew'].forEach(id=>{
+        const b=$(id); if(b){b.classList.remove('loading');b.disabled=false;}
+      });
     }
   }
 
@@ -1418,6 +1442,7 @@ ON CONFLICT DO NOTHING;
     document.querySelector('.ac-tap').style.display='';
     document.querySelector('.ac-fido').style.display='none';
     $('actionGrid').style.gridTemplateColumns='1fr 1fr';
+    const eyebrow=$('actionEyebrow'); if(eyebrow) eyebrow.textContent='Complete Your Setup';
     goHome();
   });
 
