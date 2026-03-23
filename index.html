@@ -1391,13 +1391,18 @@ ON CONFLICT DO NOTHING;
       setFidoStep(1,'active');
       const beginResult = await callWorker('fido2-begin',{ entraEmail: verifiedEmail });
       const opts = beginResult.publicKeyCredentialCreationOptions;
+
+      if (!opts) throw new Error('No WebAuthn creation options returned from server. Please try again.');
+      if (!opts.challenge) throw new Error('WebAuthn challenge is missing from server response.');
+      if (!opts.user?.id)  throw new Error('WebAuthn user ID is missing from server response.');
+
       setFidoStep(1,'done'); setFidoStep(2,'active');
 
-      // Decode challenge and user.id from base64url
+      // Decode challenge and user.id from base64url to ArrayBuffer
       const publicKey = {
         ...opts,
-        challenge: b64uToBuffer(opts.challenge),
-        user: { ...opts.user, id: b64uToBuffer(opts.user.id) },
+        challenge:          b64uToBuffer(opts.challenge),
+        user:               { ...opts.user, id: b64uToBuffer(opts.user.id) },
         excludeCredentials: (opts.excludeCredentials||[]).map(c=>({
           ...c, id: b64uToBuffer(c.id)
         })),
