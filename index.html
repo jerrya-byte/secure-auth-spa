@@ -1398,11 +1398,10 @@ ON CONFLICT DO NOTHING;
 
       setFidoStep(1,'done'); setFidoStep(2,'active');
 
-      // Build a clean publicKey options object for the browser.
-      // We strip Entra-specific extensions and override rpId to match this domain.
-      // Entra returns its own rpId and conflicting extensions which cause browser errors.
+      // Minimal WebAuthn creation options — stripped to bare essentials only.
+      // Any extra fields (extensions, authenticatorSelection, attestation) from
+      // Entra cause "protection policy inconsistent" errors in the browser.
       const publicKey = {
-        // Core required fields
         rp: {
           name: 'SecureAuth Identity Portal',
           id:   window.location.hostname,
@@ -1413,31 +1412,16 @@ ON CONFLICT DO NOTHING;
           displayName: opts.user.displayName || verifiedEmail,
         },
         challenge:        b64uToBuffer(opts.challenge),
-        pubKeyCredParams: opts.pubKeyCredParams || [
-          { type: 'public-key', alg: -7  },   // ES256
-          { type: 'public-key', alg: -257 },  // RS256
+        pubKeyCredParams: [
+          { type: 'public-key', alg: -7   },  // ES256  (FIDO2 keys)
+          { type: 'public-key', alg: -257  },  // RS256  (some platform authenticators)
+          { type: 'public-key', alg: -8   },  // EdDSA  (newer keys)
         ],
-        timeout:          opts.timeout || 60000,
-
-        // Normalised authenticator selection — remove conflicting constraints
+        timeout: 120000,
+        attestation: 'none',
         authenticatorSelection: {
-          userVerification:   'preferred',
-          residentKey:        'preferred',
-          requireResidentKey: false,
+          userVerification: 'discouraged',
         },
-
-        attestation: opts.attestation || 'none',
-
-        // Exclude already-registered credentials if any
-        excludeCredentials: (opts.excludeCredentials||[]).map(c=>({
-          type: 'public-key',
-          id:   b64uToBuffer(c.id),
-          transports: c.transports || [],
-        })),
-
-        // Strip all extensions — Entra's credProtect extension causes the
-        // "protection policy inconsistent" error in most browsers
-        extensions: undefined,
       };
 
       // Step 2: Browser WebAuthn ceremony — touch your key!
