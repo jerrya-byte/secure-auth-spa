@@ -1424,7 +1424,7 @@ ON CONFLICT DO NOTHING;
 
       const completeResult = await callWorker('fido2-complete',{
         entraEmail:          verifiedEmail,
-        methodId:            beginResult.methodId,
+        userId:              beginResult.userId,
         publicKeyCredential: credPayload,
         displayName:         keyDisplayName,
       });
