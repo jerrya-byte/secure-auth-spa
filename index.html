@@ -1273,11 +1273,12 @@ ON CONFLICT DO NOTHING;
     $('userBarName').textContent = `${userData.first_name} ${userData.last_name}`;
     $('userBarEmail').textContent = verifiedEmail;
 
-    // Show only the relevant card based on flow:
-    // New User → TAP only | Existing User → FIDO2 only
+    // New User → TAP + FIDO2 guide | Existing User → FIDO2 guide only
     const isNewUser = currentFlow === 'nu';
-    document.querySelector('.ac-tap').style.display  = isNewUser ? ''     : 'none';
-    document.querySelector('.ac-fido').style.display = isNewUser ? 'none' : '';
+    document.querySelector('.ac-tap').style.display  = isNewUser ? '' : 'none';
+    document.querySelector('.ac-fido').style.display = '';
+    // Two cards for new user, one for existing
+    $('actionGrid').style.gridTemplateColumns = isNewUser ? '1fr 1fr' : '1fr';
 
     // Reset TAP + FIDO2 UI
     resetTapUi(); resetFido();
@@ -1385,18 +1386,13 @@ ON CONFLICT DO NOTHING;
   /* ══════════════════════════════════════
      FIDO2 — Register Security Key
   ══════════════════════════════════════ */
-  function setFidoStep(step, state){ // state: '' | 'active' | 'done' | 'error'
-    const el=$(`fstep${step}`);
-    el.classList.remove('active','done','error');
-    if(state) el.classList.add(state);
-  }
-
   function resetFido(){
-    [1,2,3].forEach(i=>setFidoStep(i,''));
-    $('fidoSuccess').style.display='none';
-    $('fidoAction').style.display='';
+    // Reset FIDO2 TAP sub-flow
+    $('fidoTapResult').style.display='none';
     $('fidoAlert').style.display='none';
-    const btn=$('btnFido'); btn.classList.remove('loading'); btn.disabled=false;
+    const btn=$('btnFidoTap');
+    if(btn){ btn.classList.remove('loading'); btn.disabled=false;
+      btn.querySelector('.lbl').textContent='Step 1 — Request TAP'; }
   }
 
   // Base64url helpers for WebAuthn
@@ -1408,98 +1404,7 @@ ON CONFLICT DO NOTHING;
     btoa(String.fromCharCode(...new Uint8Array(buf)))
       .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
 
-  async function registerFido2(){
-    if(!currentUser) return;
-    const btn=$('btnFido'); load(btn,true);
-    $('fidoAlert').style.display='none';
-    [1,2,3].forEach(i=>setFidoStep(i,''));
 
-    try{
-      // Step 1: Get challenge from Entra via Worker
-      setFidoStep(1,'active');
-      const beginResult = await callWorker('fido2-begin',{ entraEmail: verifiedEmail });
-      const opts = beginResult.publicKeyCredentialCreationOptions;
-
-      if (!opts)          throw new Error('No WebAuthn creation options returned from server. Please try again.');
-      if (!opts.challenge) throw new Error('WebAuthn challenge is missing from server response.');
-      if (!opts.user?.id)  throw new Error('WebAuthn user ID is missing from server response.');
-
-      setFidoStep(1,'done'); setFidoStep(2,'active');
-
-      // Minimal WebAuthn creation options — stripped to bare essentials only.
-      // Any extra fields (extensions, authenticatorSelection, attestation) from
-      // Entra cause "protection policy inconsistent" errors in the browser.
-      const publicKey = {
-        rp: {
-          name: 'SecureAuth Identity Portal',
-          id:   window.location.hostname,
-        },
-        user: {
-          id:          b64uToBuffer(opts.user.id),
-          name:        opts.user.name        || verifiedEmail,
-          displayName: opts.user.displayName || verifiedEmail,
-        },
-        challenge:        b64uToBuffer(opts.challenge),
-        pubKeyCredParams: [
-          { type: 'public-key', alg: -7   },  // ES256  (FIDO2 keys)
-          { type: 'public-key', alg: -257  },  // RS256  (some platform authenticators)
-          { type: 'public-key', alg: -8   },  // EdDSA  (newer keys)
-        ],
-        timeout: 120000,
-        attestation: 'none',
-        authenticatorSelection: {
-          userVerification: 'discouraged',
-        },
-      };
-
-      // Step 2: Browser WebAuthn ceremony — touch your key!
-      const credential = await navigator.credentials.create({ publicKey });
-      setFidoStep(2,'done'); setFidoStep(3,'active');
-
-      // Step 3: Send attestation back to Worker → Entra
-      const credPayload = {
-        id:                    credential.id,
-        rawId:                 bufferToB64u(credential.rawId),
-        type:                  credential.type,
-        clientExtensionResults: credential.getClientExtensionResults
-          ? credential.getClientExtensionResults()
-          : {},
-        response: {
-          attestationObject: bufferToB64u(credential.response.attestationObject),
-          clientDataJSON:    bufferToB64u(credential.response.clientDataJSON),
-        },
-      };
-
-      // Build a display name from the authenticator type if available
-      const authType = credential.authenticatorAttachment === 'platform' ? 'Platform Auth' : 'Security Key';
-      const keyDisplayName = `${authType} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`.slice(0,30);
-
-      const completeResult = await callWorker('fido2-complete',{
-        entraEmail:          verifiedEmail,
-        userId:              beginResult.userId,
-        publicKeyCredential: credPayload,
-        displayName:         keyDisplayName,
-        rpId:                window.location.hostname,
-      });
-      setFidoStep(3,'done');
-
-      $('fidoKeyName').textContent = completeResult.displayName || 'Security Key';
-      $('fidoAction').style.display='none';
-      $('fidoSuccess').style.display='';
-
-    }catch(err){
-      // Mark which step failed
-      const failedStep = [1,2,3].find(i=>$(`fstep${i}`).classList.contains('active'))||1;
-      setFidoStep(failedStep,'error');
-      $('fidoAlert').style.display='flex';
-      // User cancellation is not an error
-      if(err.name==='NotAllowedError'||err.message?.includes('cancelled')){
-        $('fidoMsg').textContent='Security key interaction was cancelled or timed out. Please try again.';
-      } else {
-        $('fidoMsg').textContent=err.message||'FIDO2 registration failed.';
-      }
-    }finally{ load(btn,false); }
-  }
 
   /* ══════════════════════════════════════
      Sign out
@@ -1509,10 +1414,10 @@ ON CONFLICT DO NOTHING;
     ['nuEmailIn','nuUsername','nuPassword','euPassword'].forEach(id=>$(id).value='');
     $('wbBar').classList.remove('show');
     resetTapUi(); resetFido();
-    // Reset card visibility back to default (TAP visible, FIDO2 hidden)
+    // Reset cards to default — TAP visible, FIDO2 hidden
     document.querySelector('.ac-tap').style.display='';
     document.querySelector('.ac-fido').style.display='none';
-    $('actionGrid').style.gridTemplateColumns='1fr';
+    $('actionGrid').style.gridTemplateColumns='1fr 1fr';
     goHome();
   });
 
@@ -1535,6 +1440,7 @@ ON CONFLICT DO NOTHING;
   window.copyTap           = copyTap;
   window.generateFidoTap   = generateFidoTap;
   window.copyFidoTap       = copyFidoTap;
+  window.resetFido         = resetFido;
 
   /* ══════════════════════════════════════
      Init — auto-initialise from hardcoded config
