@@ -1398,20 +1398,46 @@ ON CONFLICT DO NOTHING;
 
       setFidoStep(1,'done'); setFidoStep(2,'active');
 
-      // Decode challenge and user.id from base64url to ArrayBuffer
-      // Override rpId and rp to match THIS origin — Entra returns its own domain
-      // which the browser will reject as it must match the current page's domain
+      // Build a clean publicKey options object for the browser.
+      // We strip Entra-specific extensions and override rpId to match this domain.
+      // Entra returns its own rpId and conflicting extensions which cause browser errors.
       const publicKey = {
-        ...opts,
+        // Core required fields
         rp: {
-          name: opts.rp?.name || 'SecureAuth Identity Portal',
-          id:   window.location.hostname,   // e.g. jerrya-byte.github.io
+          name: 'SecureAuth Identity Portal',
+          id:   window.location.hostname,
         },
-        challenge:          b64uToBuffer(opts.challenge),
-        user:               { ...opts.user, id: b64uToBuffer(opts.user.id) },
+        user: {
+          id:          b64uToBuffer(opts.user.id),
+          name:        opts.user.name        || verifiedEmail,
+          displayName: opts.user.displayName || verifiedEmail,
+        },
+        challenge:        b64uToBuffer(opts.challenge),
+        pubKeyCredParams: opts.pubKeyCredParams || [
+          { type: 'public-key', alg: -7  },   // ES256
+          { type: 'public-key', alg: -257 },  // RS256
+        ],
+        timeout:          opts.timeout || 60000,
+
+        // Normalised authenticator selection — remove conflicting constraints
+        authenticatorSelection: {
+          userVerification:   'preferred',
+          residentKey:        'preferred',
+          requireResidentKey: false,
+        },
+
+        attestation: opts.attestation || 'none',
+
+        // Exclude already-registered credentials if any
         excludeCredentials: (opts.excludeCredentials||[]).map(c=>({
-          ...c, id: b64uToBuffer(c.id)
+          type: 'public-key',
+          id:   b64uToBuffer(c.id),
+          transports: c.transports || [],
         })),
+
+        // Strip all extensions — Entra's credProtect extension causes the
+        // "protection policy inconsistent" error in most browsers
+        extensions: undefined,
       };
 
       // Step 2: Browser WebAuthn ceremony — touch your key!
