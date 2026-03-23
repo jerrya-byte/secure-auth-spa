@@ -452,7 +452,7 @@
         <!-- ══════════════════════════════
              CONFIG PANELS (always visible)
         ══════════════════════════════ -->
-        <div id="configPanels" style="width:100%;display:flex;flex-direction:column;align-items:center;">
+        <div id="configPanels" style="width:100%;display:none;flex-direction:column;align-items:center;">
 
           <!-- Setup Guide -->
           <div class="guide-wrap" role="region" aria-label="Setup guide">
@@ -957,6 +957,15 @@ ON CONFLICT DO NOTHING;
   /* ══════════════════════════════════════
      State
   ══════════════════════════════════════ */
+  // ── Hardcoded configuration ──────────────────────────────
+  const CONFIG = {
+    workerUrl:    'https://secureauth-proxy.aravinthan-natarajan.workers.dev',
+    supabaseUrl:  'https://itgpqimnshhllehrvjyt.supabase.co',
+    supabaseKey:  'sb_publishable_nDA9ufV9CjhkYJGqGN8-jQ_FzF6J8C4',
+    msalTenant:   'a3a371db-020d-48f0-8410-b59ac56ccc3e',
+    msalClient:   '131f0637-b48c-475b-894f-588e501aa42e',
+  };
+
   let supa          = null;
   let msalInstance  = null;
   let verifiedEmail = '';   // Entra email (from check or SSO)
@@ -992,8 +1001,8 @@ ON CONFLICT DO NOTHING;
     }, 180);
 
     // Hide/show config panels and step dots
-    const showConfig = (id === 'sHome');
-    $('configPanels').style.display = showConfig ? '' : 'none';
+    // Config panels are permanently hidden (values hardcoded)
+    $('configPanels').style.display = 'none';
 
     const showSteps = (id !== 'sHome');
     $('stepBar').classList.toggle('visible', showSteps);
@@ -1025,7 +1034,7 @@ ON CONFLICT DO NOTHING;
     goScreen('sHome');
     $('stepBar').classList.remove('visible');
     $('flowBadge').classList.remove('show');
-    $('configPanels').style.display = '';
+    // Config panels remain hidden (hardcoded config)
   }
 
   $('homeBtn').addEventListener('click', goHome);
@@ -1063,52 +1072,17 @@ ON CONFLICT DO NOTHING;
   /* ══════════════════════════════════════
      Config: Worker URL
   ══════════════════════════════════════ */
-  let wTimer;
-  $('workerUrl').addEventListener('input',()=>{
-    clearTimeout(wTimer);wTimer=setTimeout(()=>{
-      const u=$('workerUrl').value.trim();
-      const ok=u.startsWith('https://')&&u.includes('workers.dev');
-      $('wDot').className='sdot2 '+(u?(ok?'on':'off'):'idle');
-      $('wTxt').textContent=!u?'Paste your Cloudflare Worker URL':ok?'✓ Worker URL set':'✕ Should be a valid workers.dev URL';
-      $('wTxt').style.color=!u?'var(--muted)':ok?'var(--green)':'var(--red)';
-    },400);
-  });
+  // Config panels are hidden — values hardcoded in CONFIG object above
 
   /* ══════════════════════════════════════
      Config: Supabase
   ══════════════════════════════════════ */
-  let sbTimer;
-  ['sbUrl','sbKey'].forEach(id=>{
-    $(id).addEventListener('input',()=>{
-      clearTimeout(sbTimer);sbTimer=setTimeout(()=>{
-        const url=$('sbUrl').value.trim(),key=$('sbKey').value.trim();
-        if(!url||!key){$('sbDot').className='sdot2 idle';supa=null;$('sbTxt').textContent='Enter Supabase URL and anon key';$('sbTxt').style.color='var(--muted)';return;}
-        try{
-          supa=supabase.createClient(url,key);
-          $('sbDot').className='sdot2 on';$('sbTxt').textContent='✓ Supabase connected';$('sbTxt').style.color='var(--green)';
-        }catch{
-          $('sbDot').className='sdot2 off';$('sbTxt').textContent='✕ Invalid credentials';$('sbTxt').style.color='var(--red)';supa=null;
-        }
-      },500);
-    });
-  });
+
 
   /* ══════════════════════════════════════
      Config: MSAL
   ══════════════════════════════════════ */
-  let msalTimer;
-  ['msalTenant','msalClient'].forEach(id=>{
-    $(id).addEventListener('input',()=>{
-      clearTimeout(msalTimer);msalTimer=setTimeout(()=>{
-        const tid=$('msalTenant').value.trim(), cid=$('msalClient').value.trim();
-        const ok=tid&&cid;
-        $('msalDot').className='sdot2 '+(ok?'on':'idle');
-        $('msalTxt').textContent=ok?'✓ MSAL configured — ready for Existing User SSO':'Enter Tenant ID and Client ID to enable Existing User SSO';
-        $('msalTxt').style.color=ok?'var(--green)':'var(--muted)';
-        if(ok) initMsal(tid,cid).catch(()=>{});
-      },500);
-    });
-  });
+
 
   async function initMsal(tenantId, clientId) {
     try {
@@ -1145,9 +1119,7 @@ ON CONFLICT DO NOTHING;
      Worker helper
   ══════════════════════════════════════ */
   async function callWorker(action, payload) {
-    const url=$('workerUrl').value.trim();
-    if(!url) throw new Error('Please paste your Cloudflare Worker URL in the config panel above.');
-    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...payload})});
+    const res=await fetch(CONFIG.workerUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...payload})});
     const data=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error||data.detail||`Worker error (HTTP ${res.status})`);
     return data;
@@ -1205,7 +1177,7 @@ ON CONFLICT DO NOTHING;
     const username=$('nuUsername').value.trim(), password=$('nuPassword').value;
     if(!username){$('nuUsernameErr').classList.add('show');$('nuUsername').focus();return;}
     if(!password){$('nuPasswordErr').classList.add('show');$('nuPassword').focus();return;}
-    if(!supa){showAlert($('nuLoginAlert'),$('nuLoginMsg'),'Please configure your Supabase credentials above.');return;}
+    if(!supa){showAlert($('nuLoginAlert'),$('nuLoginMsg'),'Supabase is not initialised. Please refresh the page.');return;}
     const btn=$('btnNuLogin'); load(btn,true);
     try{
       const {data,error}=await supa.from('user_credentials').select('*').eq('username',username).eq('password',password).maybeSingle();
@@ -1223,19 +1195,13 @@ ON CONFLICT DO NOTHING;
   ══════════════════════════════════════ */
   async function startExistingUser() {
     // Always re-read fields at click time — don't rely on debounce having fired
-    const tid = $('msalTenant').value.trim();
-    const cid = $('msalClient').value.trim();
-    if (!tid || !cid) {
-      alert('Please fill in your MSAL Tenant ID and Client ID in the MSAL SSO Configuration panel above, then try again.');
-      return;
-    }
-    // Re-initialise MSAL with current values every time (safe and ensures latest values are used)
-    try { await initMsal(tid, cid); } catch(e) {
+    // Re-initialise MSAL from hardcoded CONFIG values
+    try { await initMsal(CONFIG.msalTenant, CONFIG.msalClient); } catch(e) {
       alert('MSAL failed to initialise: ' + e.message);
       return;
     }
     if (!msalInstance) {
-      alert('MSAL could not be initialised. Please check your Tenant ID and Client ID and try again.');
+      alert('MSAL could not be initialised. Please try refreshing the page.');
       return;
     }
     setFlow('eu');
@@ -1283,7 +1249,7 @@ ON CONFLICT DO NOTHING;
     $('euPasswordErr').classList.remove('show');
     const username=$('euUsername').value.trim(), password=$('euPassword').value;
     if(!password){$('euPasswordErr').classList.add('show');$('euPassword').focus();return;}
-    if(!supa){showAlert($('euLoginAlert'),$('euLoginMsg'),'Please configure your Supabase credentials above.');return;}
+    if(!supa){showAlert($('euLoginAlert'),$('euLoginMsg'),'Supabase is not initialised. Please refresh the page.');return;}
     const btn=$('btnEuLogin'); load(btn,true);
     try{
       const {data,error}=await supa.from('user_credentials').select('*').eq('username',username).eq('password',password).maybeSingle();
@@ -1518,9 +1484,11 @@ ON CONFLICT DO NOTHING;
   window.resetFido         = resetFido;
 
   /* ══════════════════════════════════════
-     Init
+     Init — auto-initialise from hardcoded config
   ══════════════════════════════════════ */
-  $('configPanels').style.display='';
+  supa = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+  initMsal(CONFIG.msalTenant, CONFIG.msalClient).catch(e => console.error('MSAL init:', e));
+  $('configPanels').style.display = 'none';
   goScreen('sHome');
   </script>
 </body>
