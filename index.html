@@ -1392,8 +1392,8 @@ ON CONFLICT DO NOTHING;
       const beginResult = await callWorker('fido2-begin',{ entraEmail: verifiedEmail });
       const opts = beginResult.publicKeyCredentialCreationOptions;
 
-      if (!opts) throw new Error(`No WebAuthn creation options returned. Server response keys: ${JSON.stringify(beginResult._debug_keys||[])}`);
-      if (!opts.challenge) throw new Error(`WebAuthn challenge missing. Options keys: ${JSON.stringify(Object.keys(opts||{}))}. Debug: ${JSON.stringify(beginResult._debug_keys||[])}`);
+      if (!opts)          throw new Error('No WebAuthn creation options returned from server. Please try again.');
+      if (!opts.challenge) throw new Error('WebAuthn challenge is missing from server response.');
       if (!opts.user?.id)  throw new Error('WebAuthn user ID is missing from server response.');
 
       setFidoStep(1,'done'); setFidoStep(2,'active');
