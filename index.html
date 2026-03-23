@@ -1430,9 +1430,12 @@ ON CONFLICT DO NOTHING;
 
       // Step 3: Send attestation back to Worker → Entra
       const credPayload = {
-        id:    credential.id,
-        rawId: bufferToB64u(credential.rawId),
-        type:  credential.type,
+        id:                    credential.id,
+        rawId:                 bufferToB64u(credential.rawId),
+        type:                  credential.type,
+        clientExtensionResults: credential.getClientExtensionResults
+          ? credential.getClientExtensionResults()
+          : {},
         response: {
           attestationObject: bufferToB64u(credential.response.attestationObject),
           clientDataJSON:    bufferToB64u(credential.response.clientDataJSON),
