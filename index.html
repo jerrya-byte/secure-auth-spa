@@ -4,1476 +4,1162 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SecureAuth — Identity Portal</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.0/lib/msal-browser.min.js"></script>
-
+  <!-- MSAL: unpkg is more reliable than alcdn.msauth.net -->
+  <script src="https://unpkg.com/@azure/msal-browser@3.26.1/lib/msal-browser.min.js"
+          onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.26.1/lib/msal-browser.min.js'">
+  </script>
   <style>
     :root {
-      --bg:#0a0610; --bg2:#110919; --bg3:#190d24; --bg4:#22103a;
-      --border:rgba(106,40,117,0.25); --border-h:rgba(163,85,184,0.45);
-      --purple:#6A2875; --purple-l:#a355b8; --glow:rgba(106,40,117,0.3);
-      --accent:#c278d8; --green:#34d399; --red:#f87171;
-      --yellow:#fbbf24; --blue:#60a5fa; --orange:#fb923c;
-      --text:#f0e6f6; --muted:#8a6e94; --dim:#4a2e54;
-      --focus:#d9a8e8; --r:6px; --rl:12px;
-      --mono:'IBM Plex Mono',monospace; --sans:'Syne',sans-serif;
+      --brand:    #6A2875;
+      --brand-dk: #4e1c57;
+      --brand-lt: #f3eaf7;
+      --accent:   #9b59b6;
+      --ok:       #27ae60;
+      --warn:     #e67e22;
+      --err:      #c0392b;
+      --bg:       #f7f4fa;
+      --card:     #ffffff;
+      --text:     #1a1a2e;
+      --muted:    #6c757d;
+      --border:   #e0d4ea;
+      --radius:   14px;
+      --shadow:   0 4px 24px rgba(106,40,117,.10);
     }
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-    html{font-size:16px;scroll-behavior:smooth;}
-    body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden;line-height:1.6;}
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
 
-    .skip-link{position:fixed;top:-100px;left:1rem;z-index:9999;background:var(--focus);color:#000;padding:.6rem 1.2rem;border-radius:var(--r);font-size:.8rem;text-decoration:none;transition:top .2s;}
-    .skip-link:focus{top:1rem;}
-    :focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:var(--r);}
-    :focus:not(:focus-visible){outline:none;}
-
-    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
-      background-image:linear-gradient(rgba(106,40,117,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(106,40,117,.05) 1px,transparent 1px);
-      background-size:40px 40px;}
-    body::after{content:'';position:fixed;width:700px;height:700px;border-radius:50%;
-      background:radial-gradient(ellipse,rgba(106,40,117,.18) 0%,transparent 70%);
-      top:-250px;right:-150px;z-index:0;pointer-events:none;}
-
-    .shell{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;}
-
-    /* ── Topbar ── */
-    .topbar{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 2rem;
-      border-bottom:1px solid var(--border);background:rgba(10,6,16,.88);
-      backdrop-filter:blur(12px);position:sticky;top:0;z-index:50;}
-    .brand{display:flex;align-items:center;gap:.6rem;font-family:var(--sans);font-size:1rem;
-      font-weight:700;color:var(--text);text-decoration:none;cursor:pointer;}
-    .brand-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--purple),var(--accent));
-      border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#fff;}
-    .topbar-r{display:flex;align-items:center;gap:1rem;}
-
-    /* Step dots */
-    .steps{display:flex;align-items:center;gap:.5rem;opacity:0;transition:opacity .3s;}
-    .steps.visible{opacity:1;}
-    .sdot{width:8px;height:8px;border-radius:50%;background:var(--border);border:1px solid var(--border);transition:all .3s;}
-    .sdot.active{background:var(--accent);border-color:var(--accent);box-shadow:0 0 8px var(--accent);}
-    .sdot.done{background:var(--green);border-color:var(--green);}
-
-    /* Flow badge */
-    .flow-badge{display:none;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;
-      padding:.25rem .7rem;border-radius:20px;font-family:var(--mono);}
-    .flow-badge.show{display:flex;align-items:center;gap:.4rem;}
-    .flow-badge.nu{background:rgba(106,40,117,.2);color:var(--accent);border:1px solid rgba(106,40,117,.4);}
-    .flow-badge.eu{background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.3);}
-    .flow-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
-
-    .hc-btn{background:transparent;border:1px solid var(--border);color:var(--muted);
-      padding:.35rem .8rem;font-family:var(--mono);font-size:.65rem;letter-spacing:.1em;
-      text-transform:uppercase;cursor:pointer;border-radius:var(--r);transition:all .2s;}
-    .hc-btn:hover{border-color:var(--purple-l);color:var(--purple-l);}
-    .hc-btn[aria-pressed="true"]{background:var(--purple);color:#fff;border-color:var(--purple);}
-
-    /* ── Main + screen transitions ── */
-    main{flex:1;display:flex;flex-direction:column;align-items:center;padding:2.5rem 1.5rem 4rem;overflow:hidden;}
-
-    /* Slide container */
-    .slide-wrap{width:100%;display:flex;flex-direction:column;align-items:center;}
-
-    .screen{
-      display:none;width:100%;
-      flex-direction:column;align-items:center;
-      opacity:0;transform:translateX(40px);
-      transition:opacity .35s cubic-bezier(.4,0,.2,1), transform .35s cubic-bezier(.4,0,.2,1);
+    /* ── Layout ── */
+    .shell { min-height: 100vh; display: flex; flex-direction: column; }
+    header {
+      background: var(--brand); color: #fff; padding: 0 28px;
+      display: flex; align-items: center; gap: 14px; height: 58px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.25);
     }
-    .screen.active{
-      display:flex;opacity:1;transform:translateX(0);
+    header .logo { font-size: 1.25rem; font-weight: 700; letter-spacing: -.5px; }
+    header .logo span { opacity: .65; font-weight: 400; }
+    header .badge {
+      margin-left: auto; font-size: .68rem; background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.3); padding: 3px 10px; border-radius: 20px;
     }
-    .screen.slide-out-left{
-      opacity:0;transform:translateX(-40px);
+    main { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; }
+    .container { width: 100%; max-width: 720px; }
+
+    /* ── Screens ── */
+    .screen { display: none; animation: fadeIn .25s ease; }
+    .screen.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); border: 1px solid var(--border); overflow: hidden;
     }
-    .screen.slide-in-right{
-      opacity:0;transform:translateX(40px);
+    .card-header { background: var(--brand); color: #fff; padding: 22px 28px; }
+    .card-header h2 { font-size: 1.2rem; font-weight: 600; }
+    .card-header p { font-size: .85rem; opacity: .8; margin-top: 4px; }
+    .card-body { padding: 28px; }
+
+    /* ── Home screen ── */
+    .home-hero { text-align: center; margin-bottom: 32px; }
+    .home-hero h1 { font-size: 2rem; font-weight: 700; color: var(--brand); }
+    .home-hero h1 span { color: var(--accent); }
+    .home-hero p { color: var(--muted); margin-top: 8px; }
+    .pathway-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 540px) { .pathway-grid { grid-template-columns: 1fr; } }
+    .pathway-card {
+      background: var(--card); border-radius: var(--radius); border: 2px solid var(--border);
+      padding: 28px 22px; cursor: pointer; transition: all .2s; text-align: center;
+    }
+    .pathway-card:hover { border-color: var(--brand); box-shadow: 0 6px 20px rgba(106,40,117,.15); transform: translateY(-2px); }
+    .pathway-card .icon { font-size: 2.2rem; margin-bottom: 12px; }
+    .pathway-card h3 { font-size: 1.05rem; font-weight: 700; color: var(--brand); margin-bottom: 6px; }
+    .pathway-card p { font-size: .82rem; color: var(--muted); line-height: 1.5; }
+    .pathway-card .tag {
+      display: inline-block; margin-top: 12px; font-size: .7rem; font-weight: 600;
+      padding: 3px 10px; border-radius: 12px; background: var(--brand-lt); color: var(--brand);
     }
 
-    /* ── Setup guide ── */
-    .guide-wrap{width:100%;max-width:960px;margin-bottom:1.5rem;border:1px solid var(--yellow);
-      border-radius:var(--rl);overflow:hidden;background:rgba(251,191,36,.04);}
-    .guide-toggle{width:100%;background:transparent;border:none;padding:1rem 1.5rem;
-      display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:var(--yellow);
-      font-family:var(--mono);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;}
-    .guide-toggle:hover{background:rgba(251,191,36,.06);}
-    .guide-toggle .chev{transition:transform .3s;font-style:normal;}
-    .guide-toggle[aria-expanded="true"] .chev{transform:rotate(180deg);}
-    .guide-body{display:none;padding:0 1.5rem 1.5rem;border-top:1px solid rgba(251,191,36,.15);}
-    .guide-body.open{display:block;}
-    .gtabs{display:flex;margin-top:1.2rem;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-wrap:wrap;}
-    .gtab{flex:1;min-width:120px;padding:.65rem .75rem;background:transparent;border:none;
-      border-right:1px solid var(--border);font-family:var(--mono);font-size:.62rem;
-      letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:all .2s;}
-    .gtab:last-child{border-right:none;}
-    .gtab:hover{background:var(--bg3);color:var(--text);}
-    .gtab.active{background:var(--bg3);color:var(--yellow);}
-    .gpanel{display:none;}.gpanel.active{display:block;}
-    .gstep{margin-top:1.2rem;}
-    .gstep h3{font-family:var(--sans);font-size:.85rem;font-weight:600;color:var(--yellow);margin-bottom:.5rem;}
-    .gstep p{font-size:.72rem;color:var(--muted);line-height:1.8;margin-bottom:.5rem;}
-    .gstep a{color:var(--purple-l);}
-    .gstep ul{padding-left:1.2rem;font-size:.72rem;color:var(--muted);line-height:2;}
-    .gstep ul li strong{color:var(--text);}
-    .codeblock{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
-      padding:1rem 1.2rem;font-size:.68rem;color:var(--green);line-height:1.7;white-space:pre;overflow-x:auto;position:relative;}
-    .cpybtn{position:absolute;top:.5rem;right:.5rem;background:var(--bg3);border:1px solid var(--border);
-      color:var(--muted);font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;
-      padding:.25rem .6rem;border-radius:4px;cursor:pointer;transition:all .2s;}
-    .cpybtn:hover{border-color:var(--green);color:var(--green);}
-    .cpybtn.copied{color:var(--green);border-color:var(--green);}
-    .ibox{background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.25);border-radius:var(--r);
-      padding:.85rem 1rem;font-size:.7rem;color:var(--blue);line-height:1.7;margin-top:.75rem;}
-    .wbox{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:var(--r);
-      padding:.85rem 1rem;font-size:.7rem;color:var(--yellow);line-height:1.7;margin-top:.75rem;}
-
-    /* ── Config panels ── */
-    .cfg{width:100%;max-width:960px;margin-bottom:1.25rem;background:var(--bg2);
-      border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;}
-    .cfg-hdr{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid var(--border);}
-    .cfg-title{font-family:var(--sans);font-size:.8rem;font-weight:600;color:var(--muted);
-      letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:.6rem;}
-    .badge{font-size:.58rem;padding:.18rem .55rem;border-radius:20px;letter-spacing:.12em;text-transform:uppercase;font-family:var(--mono);}
-    .b-entra{background:rgba(96,165,250,.15);color:var(--blue);border:1px solid rgba(96,165,250,.3);}
-    .b-supa{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.25);}
-    .b-msal{background:rgba(106,40,117,.2);color:var(--accent);border:1px solid rgba(106,40,117,.4);}
-    .cfg-body{padding:1.25rem 1.5rem;}
-    .cfg-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
-    .cfg-field label{display:block;font-size:.62rem;letter-spacing:.15em;text-transform:uppercase;color:var(--purple-l);margin-bottom:.35rem;}
-    .cfg-field input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
-      padding:.65rem .9rem;font-family:var(--mono);font-size:.72rem;border-radius:var(--r);transition:border-color .2s;}
-    .cfg-field input:focus{outline:none;border-color:var(--purple);}
-    .cfg-field input::placeholder{color:var(--dim);}
-    .cfg-status{display:flex;align-items:center;gap:.5rem;font-size:.68rem;margin-top:.5rem;}
-    .sdot2{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
-    .sdot2.on{background:var(--green);box-shadow:0 0 6px var(--green);}
-    .sdot2.off{background:var(--red);}
-    .sdot2.idle{background:var(--dim);}
-
-    /* ── HOME PAGE ── */
-    .home-wrap{width:100%;max-width:860px;}
-    .home-hero{text-align:center;margin-bottom:3rem;padding-top:1rem;}
-    .home-hero h1{font-family:var(--sans);font-size:clamp(2rem,5vw,3.2rem);font-weight:800;
-      color:var(--text);line-height:1.1;margin-bottom:.75rem;}
-    .home-hero h1 span{color:var(--accent);}
-    .home-hero p{font-size:.8rem;color:var(--muted);max-width:480px;margin:0 auto;line-height:1.9;}
-
-    .pathway-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;}
-
-    .pathway-card{
-      background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);
-      overflow:hidden;cursor:pointer;
-      transition:transform .3s cubic-bezier(.34,1.4,.64,1), border-color .25s, box-shadow .25s;
-      position:relative;
+    /* ── Steps indicator ── */
+    .steps { display: flex; align-items: center; gap: 0; margin-bottom: 24px; }
+    .step {
+      display: flex; align-items: center; gap: 8px; font-size: .8rem;
+      color: var(--muted); flex: 1; justify-content: center;
     }
-    .pathway-card:hover{
-      transform:translateY(-6px);
-      border-color:var(--purple-l);
-      box-shadow:0 20px 50px rgba(106,40,117,.3);
+    .step.active { color: var(--brand); font-weight: 600; }
+    .step.done { color: var(--ok); }
+    .step-dot {
+      width: 26px; height: 26px; border-radius: 50%; background: #e8e0ed;
+      display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 700;
+      flex-shrink: 0;
     }
-    .pathway-card:focus-visible{
-      outline:2px solid var(--focus);outline-offset:4px;
+    .step.active .step-dot { background: var(--brand); color: #fff; }
+    .step.done .step-dot { background: var(--ok); color: #fff; }
+    .step-line { flex: 1; height: 2px; background: #e8e0ed; max-width: 40px; }
+
+    /* ── Form elements ── */
+    label { display: block; font-size: .82rem; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    input[type=text], input[type=email], input[type=password] {
+      width: 100%; padding: 11px 14px; border: 1.5px solid var(--border);
+      border-radius: 9px; font-size: .92rem; outline: none; transition: border-color .2s;
+      background: #fafafa;
     }
-    .pathway-card-top{
-      height:160px;display:flex;align-items:center;justify-content:center;
-      position:relative;overflow:hidden;
-    }
-    .pc-nu .pathway-card-top{background:linear-gradient(135deg,#190d24 0%,#3d1650 100%);}
-    .pc-eu .pathway-card-top{background:linear-gradient(135deg,#0d1930 0%,#1a2a5e 100%);}
-
-    .pathway-icon{
-      font-size:3.5rem;position:relative;z-index:1;
-      filter:drop-shadow(0 0 20px rgba(106,40,117,.5));
-    }
-    .pc-eu .pathway-icon{filter:drop-shadow(0 0 20px rgba(96,165,250,.4));}
-
-    /* decorative glyph behind icon */
-    .pathway-glyph{
-      position:absolute;right:.5rem;bottom:-.5rem;
-      font-family:var(--sans);font-size:6rem;font-weight:800;
-      color:rgba(255,255,255,.04);line-height:1;pointer-events:none;
-      user-select:none;
-    }
-
-    /* top accent line */
-    .pathway-card::before{
-      content:'';position:absolute;top:0;left:0;right:0;height:2px;
-      background:linear-gradient(90deg,var(--purple),var(--accent));
-      opacity:0;transition:opacity .25s;
-    }
-    .pc-eu::before{background:linear-gradient(90deg,#1a4fa8,var(--blue));}
-    .pathway-card:hover::before{opacity:1;}
-
-    .pathway-info{padding:1.5rem;}
-    .pathway-tag{font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:.4rem;}
-    .pc-eu .pathway-tag{color:var(--blue);}
-    .pathway-name{font-family:var(--sans);font-size:1.25rem;font-weight:700;color:var(--text);margin-bottom:.5rem;line-height:1.2;}
-    .pathway-desc{font-size:.7rem;color:var(--muted);line-height:1.8;margin-bottom:1rem;}
-    .pathway-steps{display:flex;flex-direction:column;gap:.35rem;margin-bottom:1.25rem;}
-    .pathway-step{display:flex;align-items:center;gap:.6rem;font-size:.65rem;color:var(--muted);}
-    .pathway-step::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--accent);flex-shrink:0;}
-    .pc-eu .pathway-step::before{background:var(--blue);}
-    .pathway-cta{
-      display:flex;align-items:center;justify-content:center;gap:.5rem;
-      padding:.75rem 1.25rem;border-radius:var(--r);
-      font-family:var(--mono);font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;
-      border:none;cursor:pointer;width:100%;transition:all .2s;
-    }
-    .pc-nu .pathway-cta{background:linear-gradient(135deg,var(--purple),var(--accent));color:#fff;}
-    .pc-nu .pathway-cta:hover{box-shadow:0 6px 20px var(--glow);}
-    .pc-eu .pathway-cta{background:linear-gradient(135deg,#1a4fa8,var(--blue));color:#fff;}
-    .pc-eu .pathway-cta:hover{box-shadow:0 6px 20px rgba(96,165,250,.3);}
-
-    /* ── Auth cards ── */
-    .card{width:100%;max-width:500px;background:var(--bg2);border:1px solid var(--border);
-      border-radius:var(--rl);overflow:hidden;}
-    .card-hdr{padding:1.5rem 2rem 1.25rem;border-bottom:1px solid var(--border);position:relative;overflow:hidden;}
-    .card-hdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
-      background:linear-gradient(90deg,var(--purple),var(--accent));}
-    .card-hdr.eu-hdr::before{background:linear-gradient(90deg,#1a4fa8,var(--blue));}
-    .eyebrow{font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--accent);margin-bottom:.4rem;}
-    .eu-hdr .eyebrow{color:var(--blue);}
-    .card-title{font-family:var(--sans);font-size:1.35rem;font-weight:700;color:var(--text);line-height:1.2;}
-    .card-sub{font-size:.72rem;color:var(--muted);margin-top:.35rem;line-height:1.7;}
-    .pbadge{display:inline-flex;align-items:center;gap:.4rem;font-size:.6rem;letter-spacing:.12em;
-      text-transform:uppercase;padding:.25rem .65rem;border-radius:20px;margin-top:.6rem;}
-    .pbadge.entra{background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.3);}
-    .pbadge.supa{background:rgba(52,211,153,.1);color:var(--green);border:1px solid rgba(52,211,153,.25);}
-    .pbadge.msal{background:rgba(106,40,117,.15);color:var(--accent);border:1px solid rgba(106,40,117,.35);}
-    .pbadge-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
-    .card-body{padding:1.75rem 2rem;}
-
-    /* ── SSO loading card ── */
-    .sso-card{width:100%;max-width:500px;background:var(--bg2);border:1px solid var(--border);
-      border-radius:var(--rl);padding:3rem 2rem;display:flex;flex-direction:column;
-      align-items:center;text-align:center;gap:1.25rem;}
-    .sso-spinner{width:48px;height:48px;border:3px solid rgba(106,40,117,.2);
-      border-top-color:var(--purple-l);border-radius:50%;animation:sp .8s linear infinite;}
-    .sso-title{font-family:var(--sans);font-size:1.1rem;font-weight:700;color:var(--text);}
-    .sso-sub{font-size:.72rem;color:var(--muted);line-height:1.8;}
-
-    /* ── Forms ── */
-    .fg{margin-bottom:1.25rem;}
-    .fg label{display:block;font-size:.62rem;letter-spacing:.15em;text-transform:uppercase;color:var(--purple-l);margin-bottom:.4rem;}
-    .iw{position:relative;}
-    .iicon{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:var(--dim);font-size:.85rem;pointer-events:none;}
-    .fi{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);
-      padding:.8rem 1rem .8rem 2.6rem;font-family:var(--mono);font-size:.82rem;
-      border-radius:var(--r);transition:border-color .2s,box-shadow .2s;}
-    .fi:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px var(--glow);}
-    .fi:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
-    .fi::placeholder{color:var(--dim);}
-    .fi[readonly]{background:var(--bg2);color:var(--muted);cursor:default;}
-    .ferr{display:none;margin-top:.4rem;font-size:.67rem;color:var(--red);align-items:center;gap:.4rem;}
-    .ferr.show{display:flex;}
+    input:focus { border-color: var(--brand); background: #fff; }
+    .field { margin-bottom: 18px; }
 
     /* ── Buttons ── */
-    .btn{width:100%;padding:.9rem 1.5rem;font-family:var(--mono);font-size:.75rem;
-      letter-spacing:.15em;text-transform:uppercase;border:none;border-radius:var(--r);
-      cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;}
-    .btn-p{background:linear-gradient(135deg,var(--purple),var(--accent));color:#fff;}
-    .btn-p:hover{transform:translateY(-1px);box-shadow:0 8px 24px var(--glow);}
-    .btn-p:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none;}
-    .btn-blue{background:linear-gradient(135deg,#1a4fa8,var(--blue));color:#fff;}
-    .btn-blue:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(96,165,250,.3);}
-    .btn-blue:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-    .btn-g{background:transparent;color:var(--muted);border:1px solid var(--border);}
-    .btn-g:hover{border-color:var(--purple-l);color:var(--purple-l);}
-    .spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
-      border-radius:50%;animation:sp .7s linear infinite;display:none;}
-    .btn.loading .spin{display:block;}
-    .btn.loading .lbl{opacity:.6;}
-    @keyframes sp{to{transform:rotate(360deg)}}
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 11px 22px; border-radius: 9px; font-size: .9rem; font-weight: 600;
+      border: none; cursor: pointer; transition: all .18s; text-decoration: none;
+    }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary { background: var(--brand); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--brand-dk); }
+    .btn-secondary { background: transparent; color: var(--brand); border: 2px solid var(--brand); }
+    .btn-secondary:hover:not(:disabled) { background: var(--brand-lt); }
+    .btn-warn { background: var(--warn); color: #fff; }
+    .btn-warn:hover:not(:disabled) { background: #d35400; }
+    .btn-full { width: 100%; }
+    .btn-sm { padding: 7px 14px; font-size: .8rem; }
+    .btn-group { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
 
     /* ── Alerts ── */
-    .alert{display:none;margin-bottom:1rem;padding:.8rem 1rem;border-radius:var(--r);
-      font-size:.72rem;line-height:1.6;align-items:flex-start;gap:.6rem;}
-    .alert.show{display:flex;}
-    .a-err{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:var(--red);}
-    .a-info{background:rgba(124,92,224,.1);border:1px solid var(--border);color:var(--purple-l);}
-    .a-ok{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);color:var(--green);}
-    .a-blue{background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.25);color:var(--blue);}
-    .aico{font-style:normal;flex-shrink:0;}
+    .alert {
+      padding: 12px 16px; border-radius: 9px; font-size: .85rem;
+      margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px;
+    }
+    .alert-err  { background: #fdecea; border: 1px solid #f5c6cb; color: #721c24; }
+    .alert-ok   { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+    .alert-info { background: var(--brand-lt); border: 1px solid var(--border); color: var(--brand-dk); }
+    .alert-warn { background: #fff3cd; border: 1px solid #ffc107; color: #856404; }
+    .alert-hidden { display: none !important; }
 
-    /* ── Token display ── */
-    .tcard{width:100%;max-width:960px;background:var(--bg2);border:1px solid var(--border);
-      border-radius:var(--rl);overflow:hidden;}
-    .thdr{padding:1.5rem 2rem;border-bottom:1px solid var(--border);position:relative;
-      overflow:hidden;display:flex;align-items:center;justify-content:space-between;}
-    .thdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
-      background:linear-gradient(90deg,var(--green),var(--purple),var(--accent));}
-    .tbadge{display:flex;align-items:center;gap:.5rem;background:rgba(52,211,153,.12);
-      border:1px solid rgba(52,211,153,.3);color:var(--green);padding:.35rem .85rem;
-      border-radius:20px;font-size:.68rem;letter-spacing:.1em;}
-    .pdot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pa 1.5s ease-in-out infinite;}
-    @keyframes pa{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
-    .tpanels{display:grid;grid-template-columns:1fr 1fr;}
-    .tpanel{padding:1.75rem 2rem;}
-    .tpanel:first-child{border-right:1px solid var(--border);}
-    .plabel{font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--muted);
-      margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;}
-    .plabel::before{content:'';width:16px;height:1px;background:currentColor;}
-    .jwt-raw{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
-      padding:1rem;font-size:.66rem;line-height:1.8;word-break:break-all;max-height:300px;overflow-y:auto;}
-    .ph{color:var(--yellow);}.ps{color:var(--dim);}.pp{color:var(--purple-l);}.pg{color:var(--green);}
-    .claims{display:flex;flex-direction:column;gap:.55rem;}
-    .crow{display:grid;grid-template-columns:170px 1fr;gap:.75rem;padding:.7rem .9rem;
-      background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);transition:border-color .2s;}
-    .crow:hover{border-color:var(--purple);}
-    .ckey{font-size:.6rem;letter-spacing:.1em;color:var(--accent);text-transform:uppercase;}
-    .cval{font-size:.72rem;color:var(--text);word-break:break-all;line-height:1.5;}
-    .cval.ok{color:var(--green);font-weight:500;}
-    .cval.mu{color:var(--muted);}
-    .cval.hi{color:var(--yellow);}
-    .cval.me{color:var(--orange);}
-    .cval.lo{color:var(--red);}
-    .tfooter{padding:1.25rem 2rem;border-top:1px solid var(--border);display:flex;
-      align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;}
-    .tfnote{font-size:.65rem;color:var(--muted);}
+    /* ── Spinner ── */
+    .spinner {
+      width: 40px; height: 40px; border: 4px solid var(--brand-lt);
+      border-top-color: var(--brand); border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 40px; }
+    .loading-wrap p { color: var(--muted); font-size: .9rem; text-align: center; }
 
-    /* ── Writeback bar ── */
-    .wb-bar{width:100%;max-width:500px;margin-bottom:1.5rem;background:var(--bg2);
-      border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1.2rem;
-      align-items:center;gap:.75rem;font-size:.72rem;display:none;}
-    .wb-bar.show{display:flex;}
-    .wb-bar.wide{max-width:960px;}
-    .wb-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.2);
-      border-top-color:var(--blue);border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0;}
-    .wb-check{color:var(--green);font-size:1rem;flex-shrink:0;}
-    .wb-x{color:var(--red);font-size:1rem;flex-shrink:0;}
+    /* ── myID specific ── */
+    .myid-brand {
+      display: flex; align-items: center; gap: 12px;
+      background: #f0f4f9; border: 1px solid #c8d6e5; border-radius: 10px;
+      padding: 14px 18px; margin-bottom: 20px;
+    }
+    .myid-brand .myid-logo {
+      width: 42px; height: 42px; background: #1b4f8e; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 900; font-size: 1rem; flex-shrink: 0;
+    }
+    .myid-brand .myid-info h4 { font-size: .9rem; font-weight: 700; color: #1b4f8e; }
+    .myid-brand .myid-info p { font-size: .78rem; color: #4a6080; margin-top: 2px; }
 
-    /* ── High contrast ── */
-    body.hc{
-      --bg:#000;--bg2:#0a0005;--bg3:#110010;--bg4:#1a0020;
-      --border:rgba(220,160,255,.5);--purple:#c060e0;--purple-l:#e090ff;--accent:#f0b0ff;
-      --green:#00ff88;--red:#ff6060;--yellow:#ffdd00;--blue:#80c0ff;--orange:#ffaa44;
-      --text:#fff;--muted:#ddc0ee;--dim:#886699;--focus:#ffff00;
+    .ip-levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+    .ip-level {
+      border: 1.5px solid var(--border); border-radius: 9px; padding: 12px;
+      text-align: center; font-size: .78rem;
+    }
+    .ip-level.required { border-color: var(--brand); background: var(--brand-lt); }
+    .ip-level .ip-tag { font-weight: 800; font-size: .95rem; color: var(--brand); display: block; }
+    .ip-level.required .ip-tag { color: var(--brand); }
+    .ip-level:not(.required) .ip-tag { color: var(--muted); }
+    .ip-level .ip-name { font-weight: 600; display: block; margin: 2px 0; }
+    .ip-level .ip-docs { color: var(--muted); font-size: .72rem; }
+
+    .strength-err-box {
+      background: #fff8e1; border: 2px solid var(--warn); border-radius: 12px;
+      padding: 24px; margin-bottom: 20px;
+    }
+    .strength-err-box h3 { color: #b45309; font-size: 1rem; margin-bottom: 8px; }
+    .strength-err-box p { color: #78350f; font-size: .85rem; line-height: 1.6; }
+
+    /* ── TAP screen ── */
+    .tap-section { margin-bottom: 24px; }
+    .tap-section h3 { font-size: 1rem; font-weight: 700; color: var(--brand); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .tap-code-box {
+      background: #1e1e2e; border-radius: 10px; padding: 20px 24px;
+      text-align: center; margin: 12px 0;
+    }
+    .tap-code-box .tap-code { font-size: 2.2rem; font-weight: 800; color: #a8ff78; letter-spacing: 6px; font-family: 'Courier New', monospace; }
+    .tap-code-box .tap-expiry { color: #aaa; font-size: .78rem; margin-top: 8px; }
+    .step-list { list-style: none; }
+    .step-list li {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 10px 0; border-bottom: 1px solid #f0eaf5; font-size: .87rem;
+    }
+    .step-list li:last-child { border-bottom: none; }
+    .step-list .num {
+      width: 24px; height: 24px; background: var(--brand); color: #fff;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: .72rem; font-weight: 700; flex-shrink: 0; margin-top: 1px;
     }
 
-    ::-webkit-scrollbar{width:4px;height:4px;}
-    ::-webkit-scrollbar-track{background:var(--bg2);}
-    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
-
-    @media(max-width:700px){
-      .pathway-grid{grid-template-columns:1fr;}
-      .cfg-row{grid-template-columns:1fr;}
-      .tpanels{grid-template-columns:1fr;}
-      .tpanel:first-child{border-right:none;border-bottom:1px solid var(--border);}
-      .crow{grid-template-columns:130px 1fr;}
-      .card-body,.card-hdr{padding:1.25rem;}
+    /* ── Identity confirmed banner ── */
+    .id-confirmed {
+      background: linear-gradient(135deg, #e8f5e9, #f1f8f1);
+      border: 1.5px solid #a5d6a7; border-radius: 10px;
+      padding: 14px 18px; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 12px;
     }
-    /* ── TAP + FIDO2 screen ── */
-    .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;width:100%;max-width:960px;}
-    .action-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;}
-    .action-card-hdr{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);position:relative;overflow:hidden;}
-    .action-card-hdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
-    .ac-tap .action-card-hdr::before{background:linear-gradient(90deg,var(--yellow),var(--orange));}
-    .ac-fido .action-card-hdr::before{background:linear-gradient(90deg,var(--blue),#60efff);}
-    .ac-title{font-family:var(--sans);font-size:1rem;font-weight:700;color:var(--text);margin-bottom:.25rem;display:flex;align-items:center;gap:.5rem;}
-    .ac-sub{font-size:.7rem;color:var(--muted);line-height:1.7;}
-    .action-card-body{padding:1.5rem;}
+    .id-confirmed .checkmark { font-size: 1.6rem; }
+    .id-confirmed h4 { font-size: .9rem; font-weight: 700; color: #1b5e20; }
+    .id-confirmed p { font-size: .78rem; color: #2e7d32; margin-top: 2px; }
 
-    /* TAP display */
-    .tap-pass{background:var(--bg);border:1px solid rgba(251,191,36,.3);border-radius:var(--r);
-      padding:1.25rem;text-align:center;margin-bottom:1rem;}
-    .tap-code{font-family:var(--sans);font-size:2rem;font-weight:800;letter-spacing:.2em;
-      color:var(--yellow);margin-bottom:.4rem;}
-    .tap-meta{font-size:.65rem;color:var(--muted);line-height:1.8;}
-    .tap-copy{background:transparent;border:1px solid rgba(251,191,36,.3);color:var(--yellow);
-      font-family:var(--mono);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;
-      padding:.35rem .85rem;border-radius:var(--r);cursor:pointer;transition:all .2s;margin-top:.5rem;}
-    .tap-copy:hover{background:rgba(251,191,36,.1);}
-    .btn-yellow{background:linear-gradient(135deg,#b45309,var(--yellow));color:#000;font-weight:600;}
-    .btn-yellow:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(251,191,36,.3);}
-    .btn-yellow:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-
-    /* FIDO2 */
-    .fido2-status{display:flex;flex-direction:column;gap:.75rem;margin-bottom:1rem;}
-    .fido2-step{display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;
-      background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);
-      font-size:.7rem;color:var(--muted);line-height:1.6;transition:border-color .2s;}
-    .fido2-step.active{border-color:var(--blue);color:var(--text);}
-    .fido2-step.done{border-color:rgba(52,211,153,.4);color:var(--green);}
-    .fido2-step.error{border-color:rgba(248,113,113,.4);color:var(--red);}
-    .fstep-num{width:22px;height:22px;border-radius:50%;background:var(--bg4);border:1px solid var(--border);
-      display:flex;align-items:center;justify-content:center;font-size:.6rem;flex-shrink:0;font-weight:600;}
-    .fido2-step.active .fstep-num{background:var(--blue);border-color:var(--blue);color:#000;}
-    .fido2-step.done .fstep-num{background:var(--green);border-color:var(--green);color:#000;}
-    .fido2-step.error .fstep-num{background:var(--red);border-color:var(--red);color:#fff;}
-    .btn-blue-fido{background:linear-gradient(135deg,#1a4fa8,var(--blue));color:#fff;}
-    .btn-blue-fido:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(96,165,250,.3);}
-    .btn-blue-fido:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-
-    /* User summary bar */
-    .user-bar{width:100%;max-width:960px;background:var(--bg2);border:1px solid var(--border);
-      border-radius:var(--r);padding:.85rem 1.25rem;display:flex;align-items:center;
-      justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem;}
-    .user-bar-info{font-size:.72rem;color:var(--muted);}
-    .user-bar-info strong{color:var(--text);}
-
-    @media(max-width:700px){.action-grid{grid-template-columns:1fr;}}
-
-    @media(prefers-reduced-motion:reduce){
-      *,*::before,*::after{animation:none!important;transition:none!important;}
-      .screen{transition:none!important;}
-    }
+    /* ── Misc ── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .text-center { text-align: center; }
+    .text-muted { color: var(--muted); font-size: .82rem; }
+    .mt-4 { margin-top: 16px; }
+    .copy-btn { cursor: pointer; }
   </style>
 </head>
 <body>
-  <a href="#main" class="skip-link">Skip to main content</a>
-  <div class="shell">
+<div class="shell">
 
-    <!-- ── Topbar ── -->
-    <header role="banner">
-      <nav class="topbar" aria-label="Application navigation">
-        <button class="brand" id="homeBtn" aria-label="SecureAuth — Go to home">
-          <span class="brand-icon" aria-hidden="true">✦</span>SecureAuth
-        </button>
-        <div class="topbar-r">
-          <span class="flow-badge nu" id="flowBadge">
-            <span class="flow-dot" aria-hidden="true"></span>
-            <span id="flowLabel">New User</span>
-          </span>
-          <div class="steps" id="stepBar" role="progressbar" aria-valuemin="1" aria-valuemax="3" aria-valuenow="1" aria-label="Step 1 of 3">
-            <span class="sdot active" id="d1" aria-hidden="true"></span>
-            <span class="sdot"        id="d2" aria-hidden="true"></span>
-            <span class="sdot"        id="d3" aria-hidden="true"></span>
-          </div>
-          <button class="hc-btn" id="hcBtn" aria-pressed="false" aria-label="Toggle high contrast">High Contrast</button>
+  <header>
+    <div class="logo">🔐 SecureAuth <span>Identity Portal</span></div>
+    <div class="badge">Powered by Microsoft Entra ID</div>
+  </header>
+
+  <main>
+    <div class="container">
+
+      <!-- ══════════════════════════════════════════════
+           SCREEN: HOME
+      ══════════════════════════════════════════════ -->
+      <div class="screen active" id="sHome">
+        <div class="home-hero">
+          <h1>Identity <span>Portal</span></h1>
+          <p>Verify your identity and set up passwordless access. Choose your pathway below.</p>
         </div>
-      </nav>
-    </header>
-
-    <main id="main">
-      <div class="slide-wrap" id="slideWrap">
-
-        <!-- ══════════════════════════════
-             CONFIG PANELS (always visible)
-        ══════════════════════════════ -->
-        <div id="configPanels" style="width:100%;display:none;flex-direction:column;align-items:center;">
-
-          <!-- Setup Guide -->
-          <div class="guide-wrap" role="region" aria-label="Setup guide">
-            <button class="guide-toggle" id="gToggle" aria-expanded="false" aria-controls="gBody">
-              <span>⚠ &nbsp; Setup Guide — Configuration &amp; SQL</span>
-              <em class="chev" aria-hidden="true">▼</em>
-            </button>
-            <div class="guide-body" id="gBody">
-              <div class="gtabs" role="tablist">
-                <button class="gtab active" role="tab" aria-selected="true"  id="tEntra"    onclick="gTab('Entra')"   >🔷 Entra/Worker</button>
-                <button class="gtab"        role="tab" aria-selected="false" id="tSupabase" onclick="gTab('Supabase')">🟢 Supabase</button>
-                <button class="gtab"        role="tab" aria-selected="false" id="tWorker"   onclick="gTab('Worker')"  >⚙ Worker v2</button>
-                <button class="gtab"        role="tab" aria-selected="false" id="tMsal"     onclick="gTab('Msal')"    >🔐 MSAL SSO</button>
-              </div>
-
-              <!-- ENTRA TAB -->
-              <div class="gpanel active" id="pEntra" role="tabpanel" aria-labelledby="tEntra">
-                <div class="gstep">
-                  <h3>Entra App Registration — Permissions Required</h3>
-                  <p>Ensure both permissions below are granted with admin consent on your <strong>SecureAuth-EmailChecker</strong> App Registration:</p>
-                  <ul>
-                    <li><strong>User.ReadBasic.All</strong> — email existence check (already done)</li>
-                    <li><strong>User.ReadWrite.All</strong> — personal email writeback (already done)</li>
-                  </ul>
-                </div>
-              </div>
-
-              <!-- SUPABASE TAB -->
-              <div class="gpanel" id="pSupabase" role="tabpanel" aria-labelledby="tSupabase">
-                <div class="gstep">
-                  <h3>user_credentials table (if not already created)</h3>
-                  <div class="codeblock" id="sqlCreds">
-CREATE TABLE IF NOT EXISTS public.user_credentials (
-  id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  username         TEXT UNIQUE NOT NULL,
-  password         TEXT NOT NULL,
-  first_name       TEXT NOT NULL,
-  last_name        TEXT NOT NULL,
-  identity_strength TEXT NOT NULL,
-  personal_email   TEXT NOT NULL,
-  created_at       TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.user_credentials ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "allow_anon_select" ON public.user_credentials FOR SELECT USING (true);
-
-INSERT INTO public.user_credentials
-  (username, password, first_name, last_name, identity_strength, personal_email)
-VALUES
-  ('john.doe',   'Pass@1234', 'John',  'Doe',    'High',   '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e58f8a8d8bcb818a80a58288848c89cb868a88">[email&#160;protected]</a>'),
-  ('jane.smith', 'Pass@5678', 'Jane',  'Smith',  'Medium', '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ee848f808bc09d83879a86ae89838f8782c08d8183">[email&#160;protected]</a>'),
-  ('bob.jones',  'Pass@9012', 'Bob',   'Jones',  'Low',    '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="bad8d5d894d0d5d4dfc9fad2d5ced7dbd3d694d9d5d7">[email&#160;protected]</a>'),
-  ('alice.chen', 'Pass@3456', 'Alice', 'Chen',   'High',   '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1a7b7673797f3479727f745a756f6e7675757134797577">[email&#160;protected]</a>'),
-  ('tom.wright', 'Pass@7890', 'Tom',   'Wright', 'Medium', '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f682999bd881849f919e82b68f979e9999d895999b">[email&#160;protected]</a>')
-ON CONFLICT DO NOTHING;
-<button class="cpybtn" onclick="cpyCode('sqlCreds',this)">Copy</button></div>
-                </div>
-              </div>
-
-              <!-- WORKER TAB -->
-              <div class="gpanel" id="pWorker" role="tabpanel" aria-labelledby="tWorker">
-                <div class="gstep">
-                  <h3>Worker is already up to date</h3>
-                  <p>The worker.js from the previous build already supports <strong>check-email</strong>, <strong>writeback-email</strong>, and <strong>generate-token</strong>. No changes needed unless you haven't deployed it yet.</p>
-                  <p>Env variables needed: <strong>ENTRA_TENANT_ID</strong>, <strong>ENTRA_CLIENT_ID</strong>, <strong>ENTRA_CLIENT_SECRET</strong>, <strong>JWT_SECRET</strong>, <strong>ALLOWED_ORIGIN</strong>.</p>
-                </div>
-              </div>
-
-              <!-- MSAL TAB -->
-              <div class="gpanel" id="pMsal" role="tabpanel" aria-labelledby="tMsal">
-                <div class="gstep">
-                  <h3>Step 1 — Add a Redirect URI to your Entra App Registration</h3>
-                  <p>The MSAL pop-up requires a redirect URI pointing back to your app. You can use the <strong>same app registration</strong> as the Worker (SecureAuth-EmailChecker).</p>
-                  <ul>
-                    <li>Go to <a href="https://portal.azure.com" target="_blank" rel="noopener">portal.azure.com</a> → <strong>Entra ID → App registrations → SecureAuth-EmailChecker</strong></li>
-                    <li>Left sidebar → <strong>Authentication → + Add a platform → Single-page application</strong></li>
-                    <li><strong>Redirect URI:</strong> <code>https://jerrya-byte.github.io/secure-auth-spa/</code></li>
-                    <li>Tick <strong>Access tokens</strong> and <strong>ID tokens</strong> under Implicit grant</li>
-                    <li>Click <strong>Configure</strong> → <strong>Save</strong></li>
-                  </ul>
-                  <div class="wbox">⚠ The redirect URI must exactly match your GitHub Pages URL including the trailing slash.</div>
-                </div>
-                <div class="gstep">
-                  <h3>Step 2 — Paste credentials into the MSAL config panel below</h3>
-                  <p>You need the same <strong>Tenant ID</strong> and <strong>Client ID</strong> from your app registration. Paste them into the <em>MSAL SSO Configuration</em> panel below.</p>
-                </div>
-                <div class="gstep">
-                  <h3>Step 3 — Existing User username matching</h3>
-                  <p>After SSO the app extracts the username from the Entra UPN — the part before the <code>@</code> symbol. This must match a <strong>username</strong> in your <code>user_credentials</code> table.</p>
-                  <div class="ibox">ℹ Example: SSO returns UPN <code><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="cea4a1a6a0e0aaa1ab8eb7a1bbbcbaaba0afa0bae0a1a0a3a7adbca1bda1a8bae0ada1a3">[email&#160;protected]</a></code> → username extracted as <code>john.doe</code> → looked up in user_credentials table.</div>
-                </div>
-              </div>
-
-            </div>
+        <div class="pathway-grid">
+          <div class="pathway-card" onclick="startFlow('nu')">
+            <div class="icon">🆕</div>
+            <h3>New User</h3>
+            <p>First-time setup. Verify your Entra account, prove your identity with myID, and register a passkey.</p>
+            <span class="tag">Entra Email → myID → Passkey</span>
           </div>
-
-          <!-- Config: Worker -->
-          <div class="cfg" role="region" aria-label="Worker configuration">
-            <div class="cfg-hdr">
-              <h2 class="cfg-title">🔷 Cloudflare Worker Proxy <span class="badge b-entra">Entra ID + JWT</span></h2>
-            </div>
-            <div class="cfg-body">
-              <div class="cfg-row">
-                <div class="cfg-field" style="grid-column:1/-1">
-                  <label for="workerUrl">Worker Proxy URL</label>
-                  <input type="url" id="workerUrl" placeholder="https://secureauth-proxy.your-name.workers.dev" autocomplete="off" />
-                </div>
-              </div>
-              <div class="cfg-status" aria-live="polite">
-                <span class="sdot2 idle" id="wDot"></span>
-                <span id="wTxt" style="font-size:.68rem;color:var(--muted)">Paste your Cloudflare Worker URL</span>
-              </div>
-            </div>
+          <div class="pathway-card" onclick="startFlow('eu')">
+            <div class="icon">🔁</div>
+            <h3>Existing User</h3>
+            <p>Already set up but need to re-authenticate or register a new security key.</p>
+            <span class="tag">Microsoft SSO → Passkey</span>
           </div>
+        </div>
+      </div>
 
-          <!-- Config: Supabase -->
-          <div class="cfg" role="region" aria-label="Supabase configuration">
-            <div class="cfg-hdr">
-              <h2 class="cfg-title">🟢 Supabase — User Credentials <span class="badge b-supa">user_credentials table</span></h2>
-            </div>
-            <div class="cfg-body">
-              <div class="cfg-row">
-                <div class="cfg-field">
-                  <label for="sbUrl">Project URL</label>
-                  <input type="url" id="sbUrl" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off" />
-                </div>
-                <div class="cfg-field">
-                  <label for="sbKey">Anon Public Key</label>
-                  <input type="text" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." autocomplete="off" />
-                </div>
-              </div>
-              <div class="cfg-status" aria-live="polite">
-                <span class="sdot2 idle" id="sbDot"></span>
-                <span id="sbTxt" style="font-size:.68rem;color:var(--muted)">Enter Supabase URL and anon key</span>
-              </div>
-            </div>
+      <!-- ══════════════════════════════════════════════
+           SCREEN: NEW USER — Step 1: Entra Email Check
+      ══════════════════════════════════════════════ -->
+      <div class="screen" id="sNuEmail">
+        <div class="card">
+          <div class="card-header">
+            <h2>New User — Identity Verification</h2>
+            <p>Step 1 of 3: Confirm your work account</p>
           </div>
-
-          <!-- Config: MSAL -->
-          <div class="cfg" role="region" aria-label="MSAL SSO configuration">
-            <div class="cfg-hdr">
-              <h2 class="cfg-title">🔐 MSAL SSO Configuration <span class="badge b-msal">Existing User</span></h2>
-            </div>
-            <div class="cfg-body">
-              <div class="cfg-row">
-                <div class="cfg-field">
-                  <label for="msalTenant">Tenant ID</label>
-                  <input type="text" id="msalTenant" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
-                </div>
-                <div class="cfg-field">
-                  <label for="msalClient">Client ID</label>
-                  <input type="text" id="msalClient" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
-                </div>
+          <div class="card-body">
+            <div class="steps">
+              <div class="step active">
+                <div class="step-dot">1</div>
+                <span>Email Check</span>
               </div>
-              <div class="cfg-status" aria-live="polite">
-                <span class="sdot2 idle" id="msalDot"></span>
-                <span id="msalTxt" style="font-size:.68rem;color:var(--muted)">Enter Tenant ID and Client ID to enable Existing User SSO</span>
+              <div class="step-line"></div>
+              <div class="step">
+                <div class="step-dot">2</div>
+                <span>myID Verify</span>
+              </div>
+              <div class="step-line"></div>
+              <div class="step">
+                <div class="step-dot">3</div>
+                <span>Set Up Passkey</span>
               </div>
             </div>
-          </div>
 
-        </div><!-- /configPanels -->
-
-        <!-- ══════════════════════════════
-             SCREEN: HOME
-        ══════════════════════════════ -->
-        <div class="screen active" id="sHome" role="region" aria-label="Home — choose your pathway">
-          <div class="home-wrap">
-            <div class="home-hero">
-              <h1>Identity <span>Portal</span></h1>
-              <p>Choose your pathway to get started. New users go through full identity verification. Existing users can sign in instantly with Microsoft SSO.</p>
+            <div class="alert alert-info">
+              ℹ️ Enter your organisation email address (your Entra UPN). This confirms you have an account in the directory before we proceed to identity verification.
             </div>
-            <div class="pathway-grid" role="list">
 
-              <!-- New User card -->
-              <div class="pathway-card pc-nu" role="listitem" tabindex="0"
-                id="nuCard" aria-label="New User — start full verification flow"
-                onkeydown="if(event.key==='Enter'||event.key===' ')startNewUser()">
-                <div class="pathway-card-top" aria-hidden="true">
-                  <span class="pathway-icon">🆕</span>
-                  <span class="pathway-glyph">N</span>
-                </div>
-                <div class="pathway-info">
-                  <p class="pathway-tag">New User</p>
-                  <h2 class="pathway-name">First Time Here?</h2>
-                  <p class="pathway-desc">Complete identity verification through our full 3-step onboarding flow.</p>
-                  <div class="pathway-steps" aria-label="Steps involved">
-                    <div class="pathway-step">Verify email in Entra ID directory</div>
-                    <div class="pathway-step">Authenticate with username &amp; password</div>
-                    <div class="pathway-step">Receive signed ID token + email writeback</div>
-                  </div>
-                  <button class="pathway-cta" onclick="startNewUser()" aria-label="Start new user verification">
-                    Get Started →
-                  </button>
-                </div>
-              </div>
+            <div class="alert alert-err alert-hidden" id="nuEmailErr"></div>
 
-              <!-- Existing User card -->
-              <div class="pathway-card pc-eu" role="listitem" tabindex="0"
-                id="euCard" aria-label="Existing User — sign in with Microsoft SSO"
-                onkeydown="if(event.key==='Enter'||event.key===' ')startExistingUser()">
-                <div class="pathway-card-top" aria-hidden="true">
-                  <span class="pathway-icon">🔐</span>
-                  <span class="pathway-glyph">E</span>
-                </div>
-                <div class="pathway-info">
-                  <p class="pathway-tag">Existing User</p>
-                  <h2 class="pathway-name">Welcome Back</h2>
-                  <p class="pathway-desc">Sign in instantly using your Microsoft account via Single Sign-On.</p>
-                  <div class="pathway-steps" aria-label="Steps involved">
-                    <div class="pathway-step">Microsoft Entra ID SSO (MSAL popup)</div>
-                    <div class="pathway-step">Authenticate with your password</div>
-                    <div class="pathway-step">Receive signed ID token + email writeback</div>
-                  </div>
-                  <button class="pathway-cta btn-blue" onclick="startExistingUser()" aria-label="Sign in with Microsoft SSO">
-                    Sign in with Microsoft →
-                  </button>
-                </div>
-              </div>
+            <div class="field">
+              <label for="nuEmail">Work Email Address (Entra UPN)</label>
+              <input type="email" id="nuEmail" placeholder="firstname.lastname@organisation.gov.au" autocomplete="email" />
+            </div>
 
+            <div class="btn-group">
+              <button class="btn btn-primary" id="nuEmailBtn" onclick="checkEntraEmail()">
+                Check Account →
+              </button>
+              <button class="btn btn-secondary" onclick="showScreen('sHome')">← Back</button>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- ══════════════════════════════
-             SCREEN: NEW USER — Email Check
-        ══════════════════════════════ -->
-        <div class="screen" id="sNuEmail" role="region" aria-label="New User: Email verification">
-          <div class="card">
-            <div class="card-hdr">
-              <p class="eyebrow">New User · Step 1 of 3</p>
-              <h1 class="card-title" id="hNuEmail">Enter your email</h1>
-              <p class="card-sub">We'll verify your email exists in the Entra ID directory.</p>
-              <span class="pbadge entra"><span class="pbadge-dot" aria-hidden="true"></span>Verified via Microsoft Entra ID</span>
-            </div>
-            <div class="card-body">
-              <div class="alert a-err" id="nuEmailAlert" role="alert" aria-live="assertive">
-                <em class="aico">✕</em><span id="nuEmailMsg"></span>
+      <!-- ══════════════════════════════════════════════
+           SCREEN: NEW USER — Step 2: myID Redirect
+      ══════════════════════════════════════════════ -->
+      <div class="screen" id="sNuMyId">
+        <div class="card">
+          <div class="card-header">
+            <h2>New User — Identity Verification</h2>
+            <p>Step 2 of 3: Verify your identity with myID</p>
+          </div>
+          <div class="card-body">
+            <div class="steps">
+              <div class="step done">
+                <div class="step-dot">✓</div>
+                <span>Email Check</span>
               </div>
-              <form id="fNuEmail" novalidate aria-label="Email check form">
-                <div class="fg">
-                  <label for="nuEmailIn">Email Address</label>
-                  <div class="iw">
-                    <input type="email" id="nuEmailIn" class="fi"
-                      placeholder="you@yourtenant.onmicrosoft.com"
-                      autocomplete="email" required aria-required="true" aria-describedby="nuEmailErr" />
-                    <span class="iicon" aria-hidden="true">@</span>
-                  </div>
-                  <p class="ferr" id="nuEmailErr" role="alert"><span aria-hidden="true">✕</span> Please enter a valid email address.</p>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:.75rem;">
-                  <button type="submit" class="btn btn-p" id="btnNuEmail">
-                    <span class="spin" aria-hidden="true"></span><span class="lbl">Check Email</span>
-                  </button>
-                  <button type="button" class="btn btn-g" onclick="goHome()" aria-label="Back to home">← Back</button>
-                </div>
-              </form>
+              <div class="step-line"></div>
+              <div class="step active">
+                <div class="step-dot">2</div>
+                <span>myID Verify</span>
+              </div>
+              <div class="step-line"></div>
+              <div class="step">
+                <div class="step-dot">3</div>
+                <span>Set Up Passkey</span>
+              </div>
+            </div>
+
+            <div class="id-confirmed">
+              <div class="checkmark">✅</div>
+              <div>
+                <h4>Account found</h4>
+                <p id="nuConfirmedEmail">Your Entra account has been located.</p>
+              </div>
+            </div>
+
+            <div class="myid-brand">
+              <div class="myid-logo">myID</div>
+              <div class="myid-info">
+                <h4>Australian Government myID</h4>
+                <p>You'll be redirected to myID to verify your identity. This is operated by the Australian Tax Office.</p>
+              </div>
+            </div>
+
+            <p style="font-size:.85rem;color:var(--text);margin-bottom:14px;font-weight:600;">
+              Why Standard strength or above?
+            </p>
+            <div class="ip-levels">
+              <div class="ip-level">
+                <span class="ip-tag">IP1</span>
+                <span class="ip-name">Basic</span>
+                <span class="ip-docs">Email only — not accepted</span>
+              </div>
+              <div class="ip-level required">
+                <span class="ip-tag">IP2 ✓</span>
+                <span class="ip-name">Standard</span>
+                <span class="ip-docs">Photo ID + Medicare — minimum required</span>
+              </div>
+              <div class="ip-level required">
+                <span class="ip-tag">IP3 ✓</span>
+                <span class="ip-name">Strong</span>
+                <span class="ip-docs">IP2 + biometric selfie — accepted</span>
+              </div>
+            </div>
+
+            <div class="alert alert-info" style="margin-top:16px;">
+              📱 <strong>Before you continue:</strong> Make sure your myID app is at <strong>Standard</strong> or <strong>Strong</strong> identity strength. You can check or upgrade at <a href="https://www.myid.gov.au" target="_blank" rel="noopener" style="color:var(--brand)">myid.gov.au</a>.
+            </div>
+
+            <div class="alert alert-err alert-hidden" id="nuMyIdErr"></div>
+
+            <div class="btn-group">
+              <button class="btn btn-primary" id="nuMyIdBtn" onclick="redirectToMyId()">
+                Continue with myID →
+              </button>
+              <button class="btn btn-secondary" onclick="showScreen('sNuEmail')">← Back</button>
+            </div>
+
+            <p class="text-muted mt-4" style="font-size:.75rem;">
+              You'll be redirected to <strong>auth.identity.gov.au</strong> — the Australian Government's official identity platform.
+              After verifying with myID, you'll return here automatically.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════
+           SCREEN: NEW USER — myID Callback (loading)
+      ══════════════════════════════════════════════ -->
+      <div class="screen" id="sNuCallback">
+        <div class="card">
+          <div class="card-header">
+            <h2>Completing Identity Verification</h2>
+            <p>Processing your myID authentication…</p>
+          </div>
+          <div class="card-body">
+            <div class="loading-wrap">
+              <div class="spinner"></div>
+              <p id="callbackMsg">Exchanging credentials with myID…</p>
+            </div>
+            <div class="alert alert-err alert-hidden" id="nuCallbackErr"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════
+           SCREEN: NEW USER — Insufficient myID strength
+      ══════════════════════════════════════════════ -->
+      <div class="screen" id="sNuStrengthError">
+        <div class="card">
+          <div class="card-header" style="background:#b45309;">
+            <h2>Identity Strength Too Low</h2>
+            <p>Your myID doesn't meet the minimum requirement</p>
+          </div>
+          <div class="card-body">
+            <div class="strength-err-box">
+              <h3>⚠️ Standard (IP2) or Strong (IP3) identity strength required</h3>
+              <p id="strengthErrMsg">
+                Your current myID identity strength is too low for this service.
+                You need to upgrade to Standard or Strong before you can continue.
+              </p>
+            </div>
+
+            <p style="font-size:.87rem;font-weight:600;margin-bottom:12px;">How to upgrade your myID strength:</p>
+            <ul class="step-list">
+              <li>
+                <div class="num">1</div>
+                <div>Open the <strong>myID app</strong> on your phone (available on the App Store or Google Play).</div>
+              </li>
+              <li>
+                <div class="num">2</div>
+                <div>Go to <strong>My Identity Strength</strong> and tap <strong>Upgrade</strong>.</div>
+              </li>
+              <li>
+                <div class="num">3</div>
+                <div>For Standard (IP2): verify with a <strong>photo ID</strong> (driver's licence or passport) and <strong>Medicare card</strong>.</div>
+              </li>
+              <li>
+                <div class="num">4</div>
+                <div>For Strong (IP3): complete the above plus a <strong>biometric selfie</strong> matched to your passport photo.</div>
+              </li>
+              <li>
+                <div class="num">5</div>
+                <div>Once upgraded, return here and click <strong>Try Again</strong>.</div>
+              </li>
+            </ul>
+
+            <p class="text-muted mt-4" style="font-size:.8rem;">
+              Need help? Visit <a href="https://www.myid.gov.au" target="_blank" rel="noopener" style="color:var(--brand)">myid.gov.au</a> or call the ATO Digital ID support line.
+            </p>
+
+            <div class="btn-group">
+              <button class="btn btn-primary" onclick="retryMyId()">↩ Try Again with myID</button>
+              <button class="btn btn-secondary" onclick="showScreen('sHome')">← Start Over</button>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- ══════════════════════════════
-             SCREEN: NEW USER — Login
-        ══════════════════════════════ -->
-        <div class="screen" id="sNuLogin" role="region" aria-label="New User: Login">
-          <div class="card">
-            <div class="card-hdr">
-              <p class="eyebrow">New User · Step 2 of 3</p>
-              <h1 class="card-title" id="hNuLogin">Sign in</h1>
-              <p class="card-sub">Email verified. Enter your username and password.</p>
-              <span class="pbadge supa"><span class="pbadge-dot" aria-hidden="true"></span>Authenticated via Supabase</span>
+      <!-- ══════════════════════════════════════════════
+           SCREEN: TAP + FIDO2 Guide (New User — Step 3)
+      ══════════════════════════════════════════════ -->
+      <div class="screen" id="sTap">
+        <div class="card">
+          <div class="card-header">
+            <h2>Set Up Passwordless Access</h2>
+            <p id="tapSubtitle">Step 3 of 3: Generate a TAP and register your passkey</p>
+          </div>
+          <div class="card-body">
+
+            <div class="steps" id="tapSteps">
+              <div class="step done">
+                <div class="step-dot">✓</div>
+                <span>Email Check</span>
+              </div>
+              <div class="step-line"></div>
+              <div class="step done">
+                <div class="step-dot">✓</div>
+                <span>myID Verify</span>
+              </div>
+              <div class="step-line"></div>
+              <div class="step active">
+                <div class="step-dot">3</div>
+                <span>Set Up Passkey</span>
+              </div>
             </div>
-            <div class="card-body">
-              <div class="alert a-info show" id="nuLoginBadge" role="status">
-                <em class="aico">✓</em><span>Entra ID verified: <strong id="nuLoginEmail"></strong></span>
+
+            <!-- Identity confirmed banner (shown for New User flow) -->
+            <div class="id-confirmed" id="tapIdentityBanner" style="display:none;">
+              <div class="checkmark">🔒</div>
+              <div>
+                <h4 id="tapIdentityName">Identity verified</h4>
+                <p id="tapIdentityDetail">myID authentication successful</p>
               </div>
-              <div class="alert a-err" id="nuLoginAlert" role="alert" aria-live="assertive">
-                <em class="aico">✕</em><span id="nuLoginMsg"></span>
+            </div>
+
+            <div class="alert alert-err alert-hidden" id="tapErr"></div>
+            <div class="alert alert-ok alert-hidden" id="tapOk"></div>
+
+            <!-- TAP Section -->
+            <div class="tap-section">
+              <h3>🔑 Step 1: Generate a Temporary Access Pass (TAP)</h3>
+              <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px;">
+                A TAP is a time-limited, single-use code that lets you sign in to Microsoft services
+                and bootstrap your FIDO2 passkey registration.
+              </p>
+
+              <div id="tapGenArea">
+                <button class="btn btn-primary" id="tapBtn" onclick="generateTap()">
+                  🔑 Generate TAP
+                </button>
               </div>
-              <form id="fNuLogin" novalidate aria-label="New user login form">
-                <div class="fg">
-                  <label for="nuUsername">Username</label>
-                  <div class="iw">
-                    <input type="text" id="nuUsername" class="fi" placeholder="john.doe"
-                      autocomplete="username" required aria-required="true" aria-describedby="nuUsernameErr" />
-                    <span class="iicon" aria-hidden="true">⌘</span>
-                  </div>
-                  <p class="ferr" id="nuUsernameErr" role="alert"><span aria-hidden="true">✕</span> Username is required.</p>
+
+              <div id="tapDisplay" style="display:none;">
+                <div class="tap-code-box">
+                  <div class="tap-code" id="tapCode">—</div>
+                  <div class="tap-expiry" id="tapExpiry"></div>
                 </div>
-                <div class="fg">
-                  <label for="nuPassword">Password</label>
-                  <div class="iw">
-                    <input type="password" id="nuPassword" class="fi" placeholder="••••••••"
-                      autocomplete="current-password" required aria-required="true" aria-describedby="nuPasswordErr" />
-                    <span class="iicon" aria-hidden="true">⚿</span>
-                  </div>
-                  <p class="ferr" id="nuPasswordErr" role="alert"><span aria-hidden="true">✕</span> Password is required.</p>
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+                  <button class="btn btn-sm btn-secondary copy-btn" onclick="copyTap()">📋 Copy TAP</button>
+                  <button class="btn btn-sm btn-secondary" onclick="generateTap()">↩ New TAP</button>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:.75rem;">
-                  <button type="submit" class="btn btn-p" id="btnNuLogin">
-                    <span class="spin" aria-hidden="true"></span><span class="lbl">Sign In</span>
-                  </button>
-                  <button type="button" class="btn btn-g" id="nuBackBtn" aria-label="Back to email check">← Back</button>
-                </div>
-              </form>
+              </div>
+            </div>
+
+            <hr class="divider" />
+
+            <!-- FIDO2 Guide Section -->
+            <div class="tap-section">
+              <h3>🛡️ Step 2: Register Your Passkey at aka.ms/mysecurityinfo</h3>
+              <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px;">
+                Microsoft requires passkey registration to happen through their official security info page.
+                Use your TAP to sign in, then add your passkey.
+              </p>
+
+              <ol class="step-list">
+                <li>
+                  <div class="num">1</div>
+                  <div>Open a new tab and go to <a href="https://aka.ms/mysecurityinfo" target="_blank" rel="noopener" style="color:var(--brand);font-weight:600;">aka.ms/mysecurityinfo</a></div>
+                </li>
+                <li>
+                  <div class="num">2</div>
+                  <div>When prompted to sign in, enter your work email and select <strong>"Use a Temporary Access Pass"</strong></div>
+                </li>
+                <li>
+                  <div class="num">3</div>
+                  <div>Enter the TAP code shown above</div>
+                </li>
+                <li>
+                  <div class="num">4</div>
+                  <div>On the Security info page, click <strong>"Add sign-in method"</strong> → select <strong>"Passkey (FIDO2)"</strong></div>
+                </li>
+                <li>
+                  <div class="num">5</div>
+                  <div>Follow the prompts to register your security key or device passkey. Name it something recognisable (e.g. "YubiKey 5", "MacBook Touch ID")</div>
+                </li>
+                <li>
+                  <div class="num">6</div>
+                  <div>Once registered, your passkey is ready. You can now sign in to any Microsoft service without a password ✅</div>
+                </li>
+              </ol>
+
+              <a href="https://aka.ms/mysecurityinfo" target="_blank" rel="noopener" class="btn btn-primary" style="margin-top:16px;display:inline-flex;">
+                🌐 Open Security Info Page
+              </a>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════
+           SCREEN: EXISTING USER — SSO
+      ══════════════════════════════════════════════ -->
+      <div class="screen" id="sEuSSO">
+        <div class="card">
+          <div class="card-header">
+            <h2>Existing User — Sign In</h2>
+            <p>Step 1 of 2: Authenticate with Microsoft</p>
+          </div>
+          <div class="card-body">
+            <div class="steps">
+              <div class="step active">
+                <div class="step-dot">1</div>
+                <span>Microsoft SSO</span>
+              </div>
+              <div class="step-line"></div>
+              <div class="step">
+                <div class="step-dot">2</div>
+                <span>Verify &amp; Set Up</span>
+              </div>
+            </div>
+
+            <div class="alert alert-info">
+              🔷 Click below to sign in with your Microsoft work account. A popup window will open — please allow popups if prompted.
+            </div>
+
+            <div class="alert alert-err alert-hidden" id="euSSOErr"></div>
+
+            <div class="btn-group">
+              <button class="btn btn-primary" id="euSSOBtn" onclick="doMsalSSO()">
+                🔷 Sign in with Microsoft
+              </button>
+              <button class="btn btn-secondary" onclick="showScreen('sHome')">← Back</button>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- ══════════════════════════════
-             SCREEN: EXISTING USER — SSO Loading
-        ══════════════════════════════ -->
-        <div class="screen" id="sEuSso" role="region" aria-label="Existing User: Microsoft SSO">
-          <div class="sso-card" aria-live="polite">
-            <div class="sso-spinner" aria-hidden="true"></div>
-            <p class="sso-title" id="ssoTitle">Opening Microsoft Sign-In…</p>
-            <p class="sso-sub" id="ssoSub">A Microsoft login pop-up will appear. Please complete sign-in there.</p>
-            <button class="btn btn-g" style="max-width:200px;margin-top:.5rem;" onclick="goHome()" aria-label="Cancel and go back">Cancel</button>
+      <!-- ══════════════════════════════════════════════
+           SCREEN: EXISTING USER — Supabase Auth
+      ══════════════════════════════════════════════ -->
+      <div class="screen" id="sEuSupaAuth">
+        <div class="card">
+          <div class="card-header">
+            <h2>Existing User — Verify Credentials</h2>
+            <p>Step 2 of 2: Confirm your portal credentials</p>
           </div>
-        </div>
-
-        <!-- ══════════════════════════════
-             SCREEN: EXISTING USER — Password
-        ══════════════════════════════ -->
-        <div class="screen" id="sEuLogin" role="region" aria-label="Existing User: Password verification">
-          <div class="card">
-            <div class="card-hdr eu-hdr">
-              <p class="eyebrow">Existing User · Step 2 of 3</p>
-              <h1 class="card-title" id="hEuLogin">Enter your password</h1>
-              <p class="card-sub">SSO successful. Authenticate your credentials to continue.</p>
-              <span class="pbadge msal"><span class="pbadge-dot" aria-hidden="true"></span>SSO via Microsoft Entra ID</span>
+          <div class="card-body">
+            <div class="steps">
+              <div class="step done">
+                <div class="step-dot">✓</div>
+                <span>Microsoft SSO</span>
+              </div>
+              <div class="step-line"></div>
+              <div class="step active">
+                <div class="step-dot">2</div>
+                <span>Verify &amp; Set Up</span>
+              </div>
             </div>
-            <div class="card-body">
-              <div class="alert a-blue show" id="euSsoBadge" role="status">
-                <em class="aico">✓</em>
-                <span>Signed in as: <strong id="euSsoName"></strong> (<span id="euSsoEmail"></span>)</span>
+
+            <div class="id-confirmed">
+              <div class="checkmark">🔷</div>
+              <div>
+                <h4 id="euSSOName">Signed in via Microsoft</h4>
+                <p id="euSSOEmail"></p>
               </div>
-              <div class="alert a-err" id="euLoginAlert" role="alert" aria-live="assertive">
-                <em class="aico">✕</em><span id="euLoginMsg"></span>
-              </div>
-              <form id="fEuLogin" novalidate aria-label="Existing user password form">
-                <div class="fg">
-                  <label for="euUsername">Username</label>
-                  <div class="iw">
-                    <input type="text" id="euUsername" class="fi" readonly
-                      aria-label="Username extracted from SSO" aria-describedby="euUsernameNote" />
-                    <span class="iicon" aria-hidden="true">⌘</span>
-                  </div>
-                  <p id="euUsernameNote" style="font-size:.65rem;color:var(--muted);margin-top:.3rem;">Extracted from your Microsoft account UPN.</p>
-                </div>
-                <div class="fg">
-                  <label for="euPassword">Password</label>
-                  <div class="iw">
-                    <input type="password" id="euPassword" class="fi" placeholder="••••••••"
-                      autocomplete="current-password" required aria-required="true" aria-describedby="euPasswordErr" />
-                    <span class="iicon" aria-hidden="true">⚿</span>
-                  </div>
-                  <p class="ferr" id="euPasswordErr" role="alert"><span aria-hidden="true">✕</span> Password is required.</p>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:.75rem;">
-                  <button type="submit" class="btn btn-blue" id="btnEuLogin">
-                    <span class="spin" aria-hidden="true"></span><span class="lbl">Verify &amp; Continue</span>
-                  </button>
-                  <button type="button" class="btn btn-g" onclick="goHome()" aria-label="Cancel and go back to home">Cancel</button>
-                </div>
-              </form>
+            </div>
+
+            <div class="alert alert-err alert-hidden" id="euSupaErr"></div>
+
+            <div class="field">
+              <label for="euUsername">Username</label>
+              <input type="text" id="euUsername" placeholder="Your portal username" autocomplete="username" />
+            </div>
+            <div class="field">
+              <label for="euPassword">Password</label>
+              <input type="password" id="euPassword" placeholder="Your portal password" autocomplete="current-password" />
+            </div>
+
+            <div class="btn-group">
+              <button class="btn btn-primary" id="euSupaBtn" onclick="doSupaAuth()">
+                Verify &amp; Continue →
+              </button>
+              <button class="btn btn-secondary" onclick="showScreen('sEuSSO')">← Back</button>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- ══════════════════════════════
-             SCREEN: TAP + FIDO2 (shared)
-        ══════════════════════════════ -->
-        <div class="screen" id="sToken" role="region" aria-label="Security actions">
+    </div><!-- /container -->
+  </main>
+</div><!-- /shell -->
 
-          <!-- Writeback status bar -->
-          <div class="wb-bar wide" id="wbBar" role="status" aria-live="polite">
-            <span class="wb-spinner" id="wbSpinner" aria-hidden="true"></span>
-            <span class="wb-check"   id="wbCheck"   style="display:none" aria-hidden="true">✓</span>
-            <span class="wb-x"       id="wbX"       style="display:none" aria-hidden="true">✕</span>
-            <span id="wbMsg"></span>
-          </div>
-
-          <!-- User summary bar -->
-          <div class="user-bar" id="userBar">
-            <div class="user-bar-info">
-              <strong id="userBarName"></strong> &nbsp;·&nbsp; <span id="userBarEmail"></span>
-            </div>
-            <div style="display:flex;align-items:center;gap:.5rem;">
-              <span class="tbadge" role="status"><span class="pdot" aria-hidden="true"></span>Authenticated</span>
-              <button class="btn btn-g" id="soBtn" style="width:auto;padding:.4rem 1rem;font-size:.65rem;" aria-label="Sign out">Sign Out</button>
-            </div>
-          </div>
-
-          <!-- Two action cards -->
-          <!-- ── Onboarding header ── -->
-          <div style="width:100%;max-width:960px;margin-bottom:1.5rem;text-align:center;">
-            <p style="font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--accent);margin-bottom:.4rem;" id="actionEyebrow">Complete Your Setup</p>
-            <h2 style="font-family:var(--sans);font-size:1.2rem;font-weight:700;color:var(--text);margin-bottom:.35rem;">Set up passwordless sign-in</h2>
-            <p style="font-size:.72rem;color:var(--muted);max-width:520px;margin:0 auto;line-height:1.8;">Follow the two steps below to enable passwordless authentication on your account. Start by requesting a Temporary Access Pass, then use it to register your security key.</p>
-          </div>
-
-          <!-- ── Connector arrow (only shown for new user) ── -->
-          <div id="actionGrid" style="width:100%;max-width:960px;display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
-
-            <!-- ── STEP 1: TAP Card ── -->
-            <div class="action-card ac-tap" role="region" aria-label="Step 1: Request Temporary Access Pass">
-              <div class="action-card-hdr">
-                <h2 class="ac-title">
-                  <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--yellow);color:#000;font-size:.7rem;font-weight:800;flex-shrink:0;" aria-hidden="true">1</span>
-                  Request a Temporary Access Pass
-                </h2>
-                <p class="ac-sub">Generate a one-time passcode that lets you sign in to Microsoft Security Info without a password or existing MFA.</p>
-              </div>
-              <div class="action-card-body">
-                <div class="alert a-err" id="tapAlert" role="alert" aria-live="assertive" style="display:none">
-                  <em class="aico">✕</em><span id="tapMsg"></span>
-                </div>
-
-                <!-- Before TAP is generated -->
-                <div id="tapRequest">
-                  <div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.25rem;">
-                    <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
-                      <span style="font-size:1rem;flex-shrink:0;">⏱</span>
-                      <span style="font-size:.7rem;color:var(--muted);line-height:1.6;">Valid for <strong style="color:var(--text)">60 minutes</strong> from generation</span>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
-                      <span style="font-size:1rem;flex-shrink:0;">🔒</span>
-                      <span style="font-size:.7rem;color:var(--muted);line-height:1.6;"><strong style="color:var(--text)">Single use only</strong> — expires after first use</span>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
-                      <span style="font-size:1rem;flex-shrink:0;">✅</span>
-                      <span style="font-size:.7rem;color:var(--muted);line-height:1.6;">Use it to sign in to <strong style="color:var(--text)">aka.ms/mysecurityinfo</strong></span>
-                    </div>
-                  </div>
-                  <button class="btn btn-yellow" id="btnTap" onclick="generateTap()" aria-label="Request Temporary Access Pass">
-                    <span class="spin" aria-hidden="true"></span><span class="lbl">🔑 Request TAP</span>
-                  </button>
-                </div>
-
-                <!-- After TAP is generated -->
-                <div id="tapResult" style="display:none">
-                  <div class="tap-pass">
-                    <p style="font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.4rem;">Your One-Time Code</p>
-                    <div class="tap-code" id="tapCode" aria-label="Temporary Access Pass code"></div>
-                    <div class="tap-meta" id="tapMeta"></div>
-                    <button class="tap-copy" id="tapCopyBtn" onclick="copyTap()" aria-label="Copy TAP to clipboard">📋 Copy Code</button>
-                  </div>
-                  <div class="alert a-ok show" style="margin-top:.85rem;" role="status">
-                    <em class="aico">✓</em>
-                    <span>TAP generated! Copy the code above, then complete Step 2 →</span>
-                  </div>
-                  <button class="btn btn-yellow" style="margin-top:.75rem;" id="btnTapNew" onclick="generateTap()" aria-label="Request a new TAP">
-                    <span class="spin" aria-hidden="true"></span><span class="lbl">Generate New TAP</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- ── STEP 2: FIDO2 Card ── -->
-            <div class="action-card ac-fido" role="region" aria-label="Step 2: Register FIDO2 Security Key">
-              <div class="action-card-hdr">
-                <h2 class="ac-title">
-                  <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#000;font-size:.7rem;font-weight:800;flex-shrink:0;" aria-hidden="true">2</span>
-                  Register your Security Key
-                </h2>
-                <p class="ac-sub">Use your TAP to sign in to Microsoft Security Info and register a hardware key (YubiKey, Titan) or platform authenticator (Windows Hello, Touch ID).</p>
-              </div>
-              <div class="action-card-body">
-
-                <div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.25rem;">
-                  <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
-                    <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(96,165,250,.2);color:var(--blue);font-size:.65rem;font-weight:700;flex-shrink:0;margin-top:.1rem;">1</span>
-                    <span style="font-size:.7rem;color:var(--muted);line-height:1.7;">Copy your TAP code from Step 1</span>
-                  </div>
-                  <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
-                    <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(96,165,250,.2);color:var(--blue);font-size:.65rem;font-weight:700;flex-shrink:0;margin-top:.1rem;">2</span>
-                    <span style="font-size:.7rem;color:var(--muted);line-height:1.7;">Click the button below to open <strong style="color:var(--text)">Microsoft Security Info</strong></span>
-                  </div>
-                  <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
-                    <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(96,165,250,.2);color:var(--blue);font-size:.65rem;font-weight:700;flex-shrink:0;margin-top:.1rem;">3</span>
-                    <span style="font-size:.7rem;color:var(--muted);line-height:1.7;">Sign in using your <strong style="color:var(--text)">Temporary Access Pass</strong> when prompted</span>
-                  </div>
-                  <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);">
-                    <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(96,165,250,.2);color:var(--blue);font-size:.65rem;font-weight:700;flex-shrink:0;margin-top:.1rem;">4</span>
-                    <span style="font-size:.7rem;color:var(--muted);line-height:1.7;">Click <strong style="color:var(--text)">+ Add sign-in method</strong> → select <strong style="color:var(--text)">Security key</strong> → follow the prompts</span>
-                  </div>
-                </div>
-
-                <a href="https://aka.ms/mysecurityinfo" target="_blank" rel="noopener"
-                  class="btn btn-blue-fido"
-                  style="text-decoration:none;"
-                  aria-label="Open Microsoft Security Info to register security key">
-                  🔐 Open Security Info →
-                </a>
-
-                <div class="alert a-err" id="fidoAlert" role="alert" aria-live="assertive" style="display:none;margin-top:1rem;">
-                  <em class="aico">✕</em><span id="fidoMsg"></span>
-                </div>
-
-                <!-- Hidden elements needed by resetFido -->
-                <div id="fidoTapResult" style="display:none">
-                  <div class="tap-code" id="fidoTapCode"></div>
-                  <div class="tap-meta" id="fidoTapMeta"></div>
-                </div>
-
-              </div>
-            </div>
-
-          </div><!-- /action-grid -->
-        </div>
-
-      </div><!-- /slideWrap -->
-    </main>
-  </div><!-- /shell -->
-
-  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-  /* ══════════════════════════════════════
-     State
-  ══════════════════════════════════════ */
-  // ── Hardcoded configuration ──────────────────────────────
+<script>
+  // ════════════════════════════════════════════════════════════
+  // CONFIG — All values hardcoded. No runtime config panels.
+  // Update CONFIG below, or update Worker secrets for myID.
+  // ════════════════════════════════════════════════════════════
   const CONFIG = {
-    workerUrl:    'https://secureauth-proxy.aravinthan-natarajan.workers.dev',
-    supabaseUrl:  'https://itgpqimnshhllehrvjyt.supabase.co',
-    supabaseKey:  'sb_publishable_nDA9ufV9CjhkYJGqGN8-jQ_FzF6J8C4',
-    msalTenant:   'a3a371db-020d-48f0-8410-b59ac56ccc3e',
-    msalClient:   '131f0637-b48c-475b-894f-588e501aa42e',
+    workerUrl:   'https://secureauth-proxy.aravinthan-natarajan.workers.dev',
+    supabaseUrl: 'https://itgpqimnshhllehrvjyt.supabase.co',
+    supabaseKey: 'sb_publishable_nDA9ufV9CjhkYJGqGN8-jQ_FzF6J8C4',
+    msalTenant:  'a3a371db-020d-48f0-8410-b59ac56ccc3e',
+    msalClient:  '131f0637-b48c-475b-894f-588e501aa42e',
   };
 
-  let supa          = null;
+  // ── App state ─────────────────────────────────────────────
   let msalInstance  = null;
-  let verifiedEmail = '';   // Entra email (from check or SSO)
+  let verifiedEmail = '';   // confirmed Entra UPN
+  let verifiedUserId = '';  // Entra user object ID
   let currentFlow   = '';   // 'nu' | 'eu'
   let currentScreen = 'sHome';
 
-  /* ══════════════════════════════════════
-     Utilities
-  ══════════════════════════════════════ */
-  const $  = id => document.getElementById(id);
-  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const isEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-  function showAlert(el,msgEl,msg,show=true){el.classList.toggle('show',show);if(msgEl)msgEl.textContent=msg;}
-  function load(btn,on){btn.classList.toggle('loading',on);btn.disabled=on;}
+  // ════════════════════════════════════════════════════════════
+  // PKCE HELPERS
+  // ════════════════════════════════════════════════════════════
 
-  /* ══════════════════════════════════════
-     Screen transitions
-  ══════════════════════════════════════ */
-  function goScreen(id) {
-    const prev = $(currentScreen);
-    const next = $(id);
-    if (!next || id === currentScreen) return;
-
-    prev.classList.add('slide-out-left');
-    setTimeout(() => {
-      prev.classList.remove('active','slide-out-left');
-      next.classList.add('active');
-      // trigger reflow then animate in
-      next.offsetHeight;
-      const h = next.querySelector('h1,[role="heading"]');
-      if (h) { h.tabIndex=-1; h.focus(); }
-      currentScreen = id;
-    }, 180);
-
-    // Hide/show config panels and step dots
-    // Config panels are permanently hidden (values hardcoded)
-    $('configPanels').style.display = 'none';
-
-    const showSteps = (id !== 'sHome');
-    $('stepBar').classList.toggle('visible', showSteps);
-    $('flowBadge').classList.toggle('show', showSteps);
+  function generateRandom(byteLength) {
+    const buf = new Uint8Array(byteLength);
+    crypto.getRandomValues(buf);
+    return btoa(String.fromCharCode(...buf))
+      .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
   }
 
-  function updateSteps(n, max=3) {
-    for(let i=1;i<=max;i++){
-      const d=$(`d${i}`); d.classList.remove('active','done');
-      if(i<n) d.classList.add('done'); if(i===n) d.classList.add('active');
+  // Generate a PKCE code_verifier (43–128 char URL-safe random string)
+  function generateCodeVerifier() {
+    return generateRandom(32); // 32 bytes → 43 base64url chars
+  }
+
+  // Generate a PKCE code_challenge from the verifier (S256)
+  async function generateCodeChallenge(verifier) {
+    const data = new TextEncoder().encode(verifier);
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    return btoa(String.fromCharCode(...new Uint8Array(hash)))
+      .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // PAGE LOAD — detect myID OIDC callback
+  // ════════════════════════════════════════════════════════════
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const params  = new URLSearchParams(window.location.search);
+    const code    = params.get('code');
+    const state   = params.get('state');
+    const errParam = params.get('error');
+
+    const storedAuth = (() => {
+      try { return JSON.parse(sessionStorage.getItem('myid_auth') || 'null'); }
+      catch { return null; }
+    })();
+
+    // Detect myID callback: we have a pending auth state AND a code (or error)
+    if (storedAuth && storedAuth.pendingMyId && (code || errParam)) {
+      // Clean URL immediately so refresh doesn't re-trigger
+      history.replaceState({}, '', window.location.pathname);
+      showScreen('sNuCallback');
+
+      if (errParam) {
+        const errDesc = params.get('error_description') || errParam;
+        sessionStorage.removeItem('myid_auth');
+        showCallbackError(`myID returned an error: ${errDesc}`);
+        return;
+      }
+
+      // Validate state to prevent CSRF
+      if (state !== storedAuth.state) {
+        sessionStorage.removeItem('myid_auth');
+        showCallbackError('State mismatch — the authentication request may have been tampered with. Please try again.');
+        return;
+      }
+
+      await processMyIdCallback(code, storedAuth);
+      return;
     }
-    $('stepBar').setAttribute('aria-valuenow',n);
-    $('stepBar').setAttribute('aria-label',`Step ${n} of ${max}`);
-  }
 
-  function setFlow(flow) {
-    currentFlow = flow;
-    const badge = $('flowBadge');
-    badge.className = 'flow-badge show ' + flow;
-    $('flowLabel').textContent = flow==='nu' ? 'New User' : 'Existing User';
-  }
-
-  /* ══════════════════════════════════════
-     Home
-  ══════════════════════════════════════ */
-  function goHome() {
-    verifiedEmail = '';
-    currentFlow   = '';
-    goScreen('sHome');
-    $('stepBar').classList.remove('visible');
-    $('flowBadge').classList.remove('show');
-    // Config panels remain hidden (hardcoded config)
-  }
-
-  $('homeBtn').addEventListener('click', goHome);
-
-  /* ══════════════════════════════════════
-     Setup guide
-  ══════════════════════════════════════ */
-  function gTab(name){
-    ['Entra','Supabase','Worker','Msal'].forEach(t=>{
-      $(`t${t}`).classList.toggle('active',t===name);
-      $(`t${t}`).setAttribute('aria-selected',String(t===name));
-      $(`p${t}`).classList.toggle('active',t===name);
-    });
-  }
-  $('gToggle').addEventListener('click',function(){
-    const open=$('gBody').classList.toggle('open');
-    this.setAttribute('aria-expanded',String(open));
-    this.querySelector('.chev').textContent=open?'▲':'▼';
-  });
-  function cpyCode(id,btn){
-    const cl=$(id).cloneNode(true);cl.querySelectorAll('button').forEach(b=>b.remove());
-    navigator.clipboard.writeText(cl.textContent.trim()).then(()=>{
-      btn.textContent='Copied!';btn.classList.add('copied');
-      setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},2000);
-    });
-  }
-
-  /* ══════════════════════════════════════
-     High contrast
-  ══════════════════════════════════════ */
-  $('hcBtn').addEventListener('click',function(){
-    this.setAttribute('aria-pressed',String(document.body.classList.toggle('hc')));
+    // Normal page load — initialise MSAL in the background
+    initMsal();
   });
 
-  /* ══════════════════════════════════════
-     Config: Worker URL
-  ══════════════════════════════════════ */
-  // Config panels are hidden — values hardcoded in CONFIG object above
+  // ════════════════════════════════════════════════════════════
+  // myID OIDC FLOW
+  // ════════════════════════════════════════════════════════════
 
-  /* ══════════════════════════════════════
-     Config: Supabase
-  ══════════════════════════════════════ */
+  // Called when user clicks "Continue with myID"
+  async function redirectToMyId() {
+    const btn = document.getElementById('nuMyIdBtn');
+    const err = document.getElementById('nuMyIdErr');
+    err.classList.add('alert-hidden');
+    btn.disabled = true;
+    btn.textContent = 'Redirecting to myID…';
 
-
-  /* ══════════════════════════════════════
-     Config: MSAL
-  ══════════════════════════════════════ */
-
-
-  async function initMsal(tenantId, clientId) {
     try {
-      // Handle different global names across MSAL versions
-      const PCA = (typeof msal !== 'undefined' && msal.PublicClientApplication)
-        ? msal.PublicClientApplication
-        : (typeof PublicClientApplication !== 'undefined')
-          ? PublicClientApplication
-          : null;
+      // Generate PKCE values
+      const codeVerifier    = generateCodeVerifier();
+      const codeChallenge   = await generateCodeChallenge(codeVerifier);
+      const state           = generateRandom(16);
+      const nonce           = generateRandom(16);
 
-      if (!PCA) throw new Error('MSAL library did not load — check your internet connection and try refreshing the page.');
+      // Store PKCE and session state before leaving the page
+      sessionStorage.setItem('myid_auth', JSON.stringify({
+        pendingMyId:  true,
+        codeVerifier,
+        state,
+        nonce,
+        entraEmail:   verifiedEmail,
+        entraUserId:  verifiedUserId,
+      }));
 
-      msalInstance = new PCA({
-        auth: {
-          clientId,
-          authority: `https://login.microsoftonline.com/${tenantId}`,
-          redirectUri: "https://jerrya-byte.github.io/secure-auth-spa/",
-        },
-        cache: { cacheLocation: 'sessionStorage' },
-        system: { loggerOptions: { loggerCallback: ()=>{}, piiLoggingEnabled: false } },
+      // Ask the Worker to build the authorization URL
+      // (keeps client_id and redirect_uri server-side)
+      const res = await callWorker('myid-auth-start', { code_challenge: codeChallenge, state, nonce });
+
+      if (res.configRequired) {
+        sessionStorage.removeItem('myid_auth');
+        showAlert(err, res.error || 'myID not yet configured — update Worker secrets after DTA onboarding.');
+        btn.disabled = false;
+        btn.textContent = 'Continue with myID →';
+        return;
+      }
+
+      // Redirect the browser to myID
+      window.location.href = res.authorizationUrl;
+
+    } catch (e) {
+      sessionStorage.removeItem('myid_auth');
+      showAlert(err, e.message);
+      btn.disabled = false;
+      btn.textContent = 'Continue with myID →';
+    }
+  }
+
+  // Called on page load when myID callback is detected
+  async function processMyIdCallback(code, storedAuth) {
+    const msgEl = document.getElementById('callbackMsg');
+    const errEl = document.getElementById('nuCallbackErr');
+
+    try {
+      msgEl.textContent = 'Exchanging credentials with myID…';
+
+      const result = await callWorker('myid-callback', {
+        code,
+        state:         storedAuth.state,
+        nonce:         storedAuth.nonce,
+        code_verifier: storedAuth.codeVerifier,
+        entra_email:   storedAuth.entraEmail,
       });
 
-      // MSAL v3 requires initialize() before any other API call
+      // Clear stored PKCE state
+      sessionStorage.removeItem('myid_auth');
+
+      if (!result.success) {
+        // Insufficient identity strength
+        if (result.reason === 'insufficient_strength') {
+          verifiedEmail  = storedAuth.entraEmail;
+          verifiedUserId = storedAuth.entraUserId;
+          document.getElementById('strengthErrMsg').textContent =
+            result.message || 'Your myID identity strength is too low.';
+          showScreen('sNuStrengthError');
+          return;
+        }
+        // Other failure
+        showCallbackError(result.error || result.message || 'myID authentication failed.');
+        return;
+      }
+
+      // ✅ Identity verified — proceed to TAP + FIDO2 setup
+      verifiedEmail  = storedAuth.entraEmail;
+      verifiedUserId = storedAuth.entraUserId;
+      currentFlow    = 'nu';
+
+      msgEl.textContent = 'Identity verified! Loading setup…';
+
+      // Populate the TAP screen identity banner
+      const name = [result.givenName, result.familyName].filter(Boolean).join(' ');
+      const banner = document.getElementById('tapIdentityBanner');
+      banner.style.display = 'flex';
+      document.getElementById('tapIdentityName').textContent =
+        name ? `Welcome, ${name}` : 'Identity verified';
+      document.getElementById('tapIdentityDetail').textContent =
+        `myID strength: IP${result.ipLevel} · ${verifiedEmail}`;
+
+      showScreen('sTap');
+
+    } catch (e) {
+      sessionStorage.removeItem('myid_auth');
+      showCallbackError(e.message);
+    }
+  }
+
+  function showCallbackError(msg) {
+    const errEl = document.getElementById('nuCallbackErr');
+    showAlert(errEl, msg + ' — Please try again.');
+    // Add retry button
+    const wrap = document.querySelector('#sNuCallback .card-body .loading-wrap');
+    if (wrap) wrap.style.display = 'none';
+    const retryDiv = document.createElement('div');
+    retryDiv.className = 'btn-group';
+    retryDiv.innerHTML = `
+      <button class="btn btn-primary" onclick="showScreen('sNuEmail');document.getElementById('nuCallbackErr').classList.add('alert-hidden');">↩ Try Again</button>
+      <button class="btn btn-secondary" onclick="showScreen('sHome')">← Home</button>
+    `;
+    document.querySelector('#sNuCallback .card-body').appendChild(retryDiv);
+  }
+
+  // Called from the strength error screen "Try Again" button
+  function retryMyId() {
+    // Re-show the myID redirect screen with the email still set
+    document.getElementById('nuConfirmedEmail').textContent =
+      `Account confirmed: ${verifiedEmail}`;
+    document.getElementById('nuMyIdErr').classList.add('alert-hidden');
+    document.getElementById('nuMyIdBtn').disabled = false;
+    document.getElementById('nuMyIdBtn').textContent = 'Continue with myID →';
+    showScreen('sNuMyId');
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // NEW USER FLOW — Step 1: Entra email check
+  // ════════════════════════════════════════════════════════════
+
+  async function checkEntraEmail() {
+    const btn = document.getElementById('nuEmailBtn');
+    const err = document.getElementById('nuEmailErr');
+    const emailInput = document.getElementById('nuEmail');
+    err.classList.add('alert-hidden');
+
+    const email = emailInput.value.trim().toLowerCase();
+    if (!email) { showAlert(err, 'Please enter your work email address.'); return; }
+    if (!email.includes('@')) { showAlert(err, 'Please enter a valid email address.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+
+    try {
+      const res = await callWorker('check-email', { email });
+
+      if (!res.exists) {
+        showAlert(err, `No Entra account found for "${email}". Please check the email address or contact your administrator.`);
+        btn.disabled = false;
+        btn.textContent = 'Check Account →';
+        return;
+      }
+
+      // Account found — store and proceed to myID step
+      verifiedEmail  = email;
+      verifiedUserId = res.userId;
+
+      document.getElementById('nuConfirmedEmail').textContent =
+        `Account confirmed: ${res.displayName ? res.displayName + ' · ' : ''}${email}`;
+      document.getElementById('nuMyIdErr').classList.add('alert-hidden');
+      document.getElementById('nuMyIdBtn').disabled = false;
+      document.getElementById('nuMyIdBtn').textContent = 'Continue with myID →';
+
+      showScreen('sNuMyId');
+
+    } catch (e) {
+      showAlert(err, e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Check Account →';
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // TAP GENERATION
+  // ════════════════════════════════════════════════════════════
+
+  async function generateTap() {
+    const btn  = document.getElementById('tapBtn');
+    const err  = document.getElementById('tapErr');
+    err.classList.add('alert-hidden');
+
+    if (!verifiedUserId) {
+      showAlert(err, 'User ID not available. Please restart the flow.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+
+    try {
+      const res = await callWorker('generate-tap', { userId: verifiedUserId });
+      document.getElementById('tapCode').textContent = res.tap;
+
+      // Format expiry time
+      if (res.expiresAt) {
+        const exp = new Date(res.expiresAt);
+        exp.setMinutes(exp.getMinutes() + 60);
+        document.getElementById('tapExpiry').textContent =
+          `Single use · Expires at ${exp.toLocaleTimeString()}`;
+      }
+
+      document.getElementById('tapGenArea').style.display = 'none';
+      document.getElementById('tapDisplay').style.display = 'block';
+
+    } catch (e) {
+      showAlert(err, e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔑 Generate TAP';
+    }
+  }
+
+  function copyTap() {
+    const code = document.getElementById('tapCode').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+      const ok = document.getElementById('tapOk');
+      showAlert(ok, 'TAP code copied to clipboard!', true);
+      setTimeout(() => ok.classList.add('alert-hidden'), 2500);
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // EXISTING USER FLOW — MSAL SSO
+  // ════════════════════════════════════════════════════════════
+
+  function initMsal() {
+    try {
+      msalInstance = new msal.PublicClientApplication({
+        auth: {
+          clientId:    CONFIG.msalClient,
+          authority:   `https://login.microsoftonline.com/${CONFIG.msalTenant}`,
+          redirectUri: window.location.origin + window.location.pathname,
+        },
+        cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false },
+      });
+      msalInstance.initialize().catch(console.error);
+    } catch (e) {
+      console.error('MSAL init error:', e);
+    }
+  }
+
+  async function doMsalSSO() {
+    const btn = document.getElementById('euSSOBtn');
+    const err = document.getElementById('euSSOErr');
+    err.classList.add('alert-hidden');
+    btn.disabled = true;
+    btn.textContent = 'Opening Microsoft sign-in…';
+
+    try {
+      if (!msalInstance) initMsal();
       await msalInstance.initialize();
 
-    } catch(e) {
-      console.error('MSAL init error:', e);
-      msalInstance = null;
-      throw e;
-    }
-  }
-
-  /* ══════════════════════════════════════
-     Worker helper
-  ══════════════════════════════════════ */
-  async function callWorker(action, payload) {
-    const res=await fetch(CONFIG.workerUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...payload})});
-    const data=await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(data.error||data.detail||`Worker error (HTTP ${res.status})`);
-    return data;
-  }
-
-  /* ══════════════════════════════════════
-     NEW USER FLOW
-  ══════════════════════════════════════ */
-  function startNewUser() {
-    setFlow('nu');
-    updateSteps(1);
-    showAlert($('nuEmailAlert'),$('nuEmailMsg'),'',false);
-    $('nuEmailIn').value='';
-    goScreen('sNuEmail');
-    setTimeout(()=>$('nuEmailIn').focus(),250);
-  }
-
-  // Step 1: Email check
-  $('fNuEmail').addEventListener('submit', async function(e){
-    e.preventDefault();
-    showAlert($('nuEmailAlert'),$('nuEmailMsg'),'',false);
-    $('nuEmailErr').classList.remove('show');
-    const email=$('nuEmailIn').value.trim();
-    if(!isEmail(email)){$('nuEmailErr').classList.add('show');$('nuEmailIn').focus();return;}
-    const btn=$('btnNuEmail'); load(btn,true);
-    try{
-      const r=await callWorker('check-email',{email});
-      if(!r.found){
-        showAlert($('nuEmailAlert'),$('nuEmailMsg'),'This email address was not found in the Entra ID directory. Please check for typos or contact your administrator.');
-      } else {
-        verifiedEmail=email;
-        $('nuLoginEmail').textContent=email;
-        $('nuUsername').value=''; $('nuPassword').value='';
-        showAlert($('nuLoginAlert'),$('nuLoginMsg'),'',false);
-        updateSteps(2);
-        goScreen('sNuLogin');
-        setTimeout(()=>$('nuUsername').focus(),250);
-      }
-    }catch(err){showAlert($('nuEmailAlert'),$('nuEmailMsg'),err.message);}
-    finally{load(btn,false);}
-  });
-
-  $('nuBackBtn').addEventListener('click',()=>{
-    showAlert($('nuLoginAlert'),$('nuLoginMsg'),'',false);
-    updateSteps(1);
-    goScreen('sNuEmail');
-  });
-
-  // Step 2: DB login
-  $('fNuLogin').addEventListener('submit', async function(e){
-    e.preventDefault();
-    showAlert($('nuLoginAlert'),$('nuLoginMsg'),'',false);
-    $('nuUsernameErr').classList.remove('show');
-    $('nuPasswordErr').classList.remove('show');
-    const username=$('nuUsername').value.trim(), password=$('nuPassword').value;
-    if(!username){$('nuUsernameErr').classList.add('show');$('nuUsername').focus();return;}
-    if(!password){$('nuPasswordErr').classList.add('show');$('nuPassword').focus();return;}
-    if(!supa){showAlert($('nuLoginAlert'),$('nuLoginMsg'),'Supabase is not initialised. Please refresh the page.');return;}
-    const btn=$('btnNuLogin'); load(btn,true);
-    try{
-      const {data,error}=await supa.from('user_credentials').select('*').eq('username',username).eq('password',password).maybeSingle();
-      if(error) throw error;
-      if(!data){showAlert($('nuLoginAlert'),$('nuLoginMsg'),'Invalid username or password. Please try again.');return;}
-      updateSteps(3);
-      goScreen('sToken');
-      await postLoginActions(data);
-    }catch(err){showAlert($('nuLoginAlert'),$('nuLoginMsg'),err.message||'Authentication error.');}
-    finally{load(btn,false);}
-  });
-
-  /* ══════════════════════════════════════
-     EXISTING USER FLOW
-  ══════════════════════════════════════ */
-  async function startExistingUser() {
-    // Always re-read fields at click time — don't rely on debounce having fired
-    // Re-initialise MSAL from hardcoded CONFIG values
-    try { await initMsal(CONFIG.msalTenant, CONFIG.msalClient); } catch(e) {
-      alert('MSAL failed to initialise: ' + e.message);
-      return;
-    }
-    if (!msalInstance) {
-      alert('MSAL could not be initialised. Please try refreshing the page.');
-      return;
-    }
-    setFlow('eu');
-    updateSteps(1);
-    $('ssoTitle').textContent='Opening Microsoft Sign-In…';
-    $('ssoSub').textContent='A Microsoft login pop-up will appear. Please complete sign-in there.';
-    goScreen('sEuSso');
-
-    try{
       const result = await msalInstance.loginPopup({
-        scopes: ['openid','profile','email','User.Read'],
+        scopes: ['openid', 'profile', 'email', 'User.Read'],
         prompt: 'select_account',
       });
 
-      const upn      = result.account.username;          // e.g. john.doe@tenant.com
-      const username = upn.split('@')[0];                 // → john.doe
-      const name     = result.account.name || upn;
+      verifiedEmail  = result.account.username;
+      verifiedUserId = result.account.localAccountId || result.account.homeAccountId;
+      currentFlow    = 'eu';
 
-      verifiedEmail = upn;
+      document.getElementById('euSSOName').textContent =
+        result.account.name || 'Microsoft account';
+      document.getElementById('euSSOEmail').textContent = verifiedEmail;
 
-      // Pre-fill existing user login screen
-      $('euUsername').value    = username;
-      $('euSsoName').textContent = name;
-      $('euSsoEmail').textContent = upn;
-      $('euPassword').value    = '';
-      showAlert($('euLoginAlert'),$('euLoginMsg'),'',false);
+      showScreen('sEuSupaAuth');
 
-      updateSteps(2);
-      goScreen('sEuLogin');
-      setTimeout(()=>$('euPassword').focus(),250);
+    } catch (e) {
+      showAlert(err, e.message || 'Microsoft sign-in failed. Ensure popups are allowed.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔷 Sign in with Microsoft';
+    }
+  }
 
-    }catch(err){
-      if(err.errorCode==='user_cancelled'||err.message?.includes('cancelled')){
-        goHome(); return;
+  // ════════════════════════════════════════════════════════════
+  // EXISTING USER FLOW — Supabase credential auth (unchanged)
+  // ════════════════════════════════════════════════════════════
+
+  async function doSupaAuth() {
+    const btn  = document.getElementById('euSupaBtn');
+    const err  = document.getElementById('euSupaErr');
+    const user = document.getElementById('euUsername').value.trim();
+    const pass = document.getElementById('euPassword').value;
+    err.classList.add('alert-hidden');
+
+    if (!user || !pass) {
+      showAlert(err, 'Please enter both username and password.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Verifying…';
+
+    try {
+      const res = await fetch(
+        `${CONFIG.supabaseUrl}/rest/v1/user_credentials?username=eq.${encodeURIComponent(user)}&select=username,password_hash`,
+        {
+          headers: {
+            apikey:        CONFIG.supabaseKey,
+            Authorization: `Bearer ${CONFIG.supabaseKey}`,
+          },
+        }
+      );
+      const data = await res.json();
+
+      if (!res.ok || !data.length) {
+        showAlert(err, 'Invalid username or password.');
+        btn.disabled = false;
+        btn.textContent = 'Verify & Continue →';
+        return;
       }
-      $('ssoTitle').textContent='Sign-In Failed';
-      $('ssoSub').textContent=err.message||'Microsoft SSO failed. Please try again.';
+
+      // Simple hash check (existing pattern)
+      const row = data[0];
+      const hashRes = await fetch(CONFIG.workerUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify-password', plaintext: pass, hash: row.password_hash }),
+      });
+      const hashData = await hashRes.json();
+
+      if (!hashData.valid) {
+        showAlert(err, 'Invalid username or password.');
+        btn.disabled = false;
+        btn.textContent = 'Verify & Continue →';
+        return;
+      }
+
+      // Show TAP screen with EU step indicator
+      document.getElementById('tapSteps').innerHTML = `
+        <div class="step done"><div class="step-dot">✓</div><span>Microsoft SSO</span></div>
+        <div class="step-line"></div>
+        <div class="step active"><div class="step-dot">2</div><span>Set Up Passkey</span></div>
+      `;
+      document.getElementById('tapSubtitle').textContent = 'Step 2 of 2: Generate a TAP and register your passkey';
+      document.getElementById('tapIdentityBanner').style.display = 'none';
+
+      showScreen('sTap');
+
+    } catch (e) {
+      showAlert(err, e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Verify & Continue →';
     }
   }
 
-  // Existing user password step
-  $('fEuLogin').addEventListener('submit', async function(e){
-    e.preventDefault();
-    showAlert($('euLoginAlert'),$('euLoginMsg'),'',false);
-    $('euPasswordErr').classList.remove('show');
-    const username=$('euUsername').value.trim(), password=$('euPassword').value;
-    if(!password){$('euPasswordErr').classList.add('show');$('euPassword').focus();return;}
-    if(!supa){showAlert($('euLoginAlert'),$('euLoginMsg'),'Supabase is not initialised. Please refresh the page.');return;}
-    const btn=$('btnEuLogin'); load(btn,true);
-    try{
-      const {data,error}=await supa.from('user_credentials').select('*').eq('username',username).eq('password',password).maybeSingle();
-      if(error) throw error;
-      if(!data){showAlert($('euLoginAlert'),$('euLoginMsg'),'Invalid password. Please try again.');return;}
-      updateSteps(3);
-      goScreen('sToken');
-      await postLoginActions(data);
-    }catch(err){showAlert($('euLoginAlert'),$('euLoginMsg'),err.message||'Authentication error.');}
-    finally{load(btn,false);}
-  });
+  // ════════════════════════════════════════════════════════════
+  // UTILITIES
+  // ════════════════════════════════════════════════════════════
 
-  /* ══════════════════════════════════════
-     Post-login: writeback + JWT (shared)
-  ══════════════════════════════════════ */
-  /* ══════════════════════════════════════
-     Post-login: writeback only
-  ══════════════════════════════════════ */
-  let currentUser = null; // store for TAP/FIDO2 use
+  async function callWorker(action, payload) {
+    let res;
+    try {
+      res = await fetch(CONFIG.workerUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...payload }),
+      });
+    } catch (networkErr) {
+      // Typically CORS preflight failure or Worker unreachable
+      throw new Error(
+        `Cannot reach the Worker at ${CONFIG.workerUrl}. ` +
+        `Check that ALLOWED_ORIGIN in your Worker secrets is set to "${window.location.origin}" ` +
+        `and that the Worker is deployed. (${networkErr.message})`
+      );
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && !data.configRequired) {
+      throw new Error(data.error || data.detail || `Worker error (HTTP ${res.status})`);
+    }
+    return data;
+  }
 
-  async function postLoginActions(userData){
-    currentUser = userData;
-
-    // Populate user bar
-    $('userBarName').textContent = `${userData.first_name} ${userData.last_name}`;
-    $('userBarEmail').textContent = verifiedEmail;
-
-    // New User → TAP + FIDO2 guide | Existing User → FIDO2 guide only
-    const isNewUser = currentFlow === 'nu';
-    document.querySelector('.ac-tap').style.display  = isNewUser ? '' : 'none';
-    document.querySelector('.ac-fido').style.display = '';
-    // Two cards for new user, one for existing
-    $('actionGrid').style.gridTemplateColumns = isNewUser ? '1fr 1fr' : '1fr';
-
-    // Reset TAP + FIDO2 UI
-    resetTapUi(); resetFido();
-
-    // Writeback
-    const wbBar=$('wbBar'),wbMsg=$('wbMsg');
-    const wbSpin=$('wbSpinner'),wbCheck=$('wbCheck'),wbX=$('wbX');
-    wbBar.classList.add('show'); wbBar.style.cssText='';
-    wbSpin.style.display=''; wbCheck.style.display='none'; wbX.style.display='none';
-    wbMsg.textContent='Writing personal email to Entra ID profile…';
-
-    try{
-      await callWorker('writeback-email',{entraEmail:verifiedEmail,personalEmail:userData.personal_email});
-      wbSpin.style.display='none'; wbCheck.style.display='';
-      wbMsg.textContent='✓ Personal email written to Entra ID otherMails successfully';
-      wbBar.style.borderColor='rgba(52,211,153,.4)'; wbBar.style.background='rgba(52,211,153,.05)';
-      wbMsg.style.color='var(--green)';
-    }catch(err){
-      wbSpin.style.display='none'; wbX.style.display='';
-      wbMsg.textContent=`Entra writeback failed: ${err.message}`;
-      wbBar.style.borderColor='rgba(248,113,113,.4)'; wbBar.style.background='rgba(248,113,113,.05)';
-      wbMsg.style.color='var(--red)';
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.add('active');
+      currentScreen = id;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }
 
-  /* ══════════════════════════════════════
-     TAP — Generate Temporary Access Pass
-  ══════════════════════════════════════ */
-  function resetTapUi(){
-    $('tapResult').style.display='none';
-    $('tapRequest').style.display='';
-    $('tapAlert').style.display='none';
-    ['btnTap','btnTapNew'].forEach(id=>{
-      const btn=$(id); if(btn){btn.classList.remove('loading');btn.disabled=false;}
-    });
-  }
-
-  async function generateTap(){
-    if(!currentUser) return;
-    // Disable all TAP buttons to prevent double-clicks
-    ['btnTap','btnTapNew'].forEach(id=>{
-      const b=$(id); if(b){b.classList.add('loading');b.disabled=true;}
-    });
-    $('tapAlert').style.display='none';
-    try{
-      const result = await callWorker('generate-tap',{
-        entraEmail:        verifiedEmail,
-        lifetimeInMinutes: 60,
-        isUsableOnce:      true,
-      });
-
-      $('tapCode').textContent = result.temporaryAccessPass;
-      const expiry = result.startDateTime
-        ? new Date(new Date(result.startDateTime).getTime() + 60*60000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
-        : '60 minutes from now';
-      $('tapMeta').innerHTML = `Valid for <strong>60 minutes</strong> &nbsp;·&nbsp; Expires at <strong>${expiry}</strong><br>Single use only — code becomes invalid after first use`;
-
-      $('tapRequest').style.display='none';
-      $('tapResult').style.display='';
-    }catch(err){
-      $('tapAlert').style.display='flex';
-      $('tapMsg').textContent=err.message;
-    }finally{
-      ['btnTap','btnTapNew'].forEach(id=>{
-        const b=$(id); if(b){b.classList.remove('loading');b.disabled=false;}
-      });
+  function startFlow(flow) {
+    currentFlow = flow;
+    if (flow === 'nu') {
+      document.getElementById('nuEmail').value = '';
+      document.getElementById('nuEmailErr').classList.add('alert-hidden');
+      showScreen('sNuEmail');
+    } else {
+      showScreen('sEuSSO');
     }
   }
 
-  function copyTap(){
-    const code=$('tapCode').textContent;
-    navigator.clipboard.writeText(code).then(()=>{
-      const btn=$('tapCopyBtn'); btn.textContent='Copied!';
-      setTimeout(()=>{btn.textContent='Copy';},2000);
-    });
+  function showAlert(el, msg, isOk = false) {
+    el.textContent = msg;
+    el.className = `alert ${isOk ? 'alert-ok' : 'alert-err'}`;
   }
-
-  /* ── FIDO2 TAP (separate instance for FIDO2 card) ── */
-  async function generateFidoTap(){
-    if(!currentUser) return;
-    const btn=$('btnFidoTap'); load(btn,true);
-    $('fidoAlert').style.display='none';
-    try{
-      const result = await callWorker('generate-tap',{
-        entraEmail:        verifiedEmail,
-        lifetimeInMinutes: 60,
-        isUsableOnce:      true,
-      });
-      $('fidoTapCode').textContent = result.temporaryAccessPass;
-      const expiry = result.startDateTime
-        ? new Date(new Date(result.startDateTime).getTime()+60*60000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
-        : '60 minutes from now';
-      $('fidoTapMeta').innerHTML=`Valid for <strong>60 minutes</strong> &nbsp;·&nbsp; Expires at <strong>${expiry}</strong><br>Single use only`;
-      $('fidoTapResult').style.display='';
-      btn.querySelector('.lbl').textContent='Regenerate TAP';
-    }catch(err){
-      $('fidoAlert').style.display='flex';
-      $('fidoMsg').textContent=err.message;
-    }finally{ load(btn,false); }
-  }
-
-  function copyFidoTap(){
-    navigator.clipboard.writeText($('fidoTapCode').textContent).then(()=>{
-      const btn=document.querySelector('#fidoTapResult .tap-copy');
-      btn.textContent='Copied!';
-      setTimeout(()=>{btn.textContent='📋 Copy Code';},2000);
-    });
-  }
-
-  /* ══════════════════════════════════════
-     FIDO2 — Register Security Key
-  ══════════════════════════════════════ */
-  function resetFido(){
-    // Reset FIDO2 TAP sub-flow
-    $('fidoTapResult').style.display='none';
-    $('fidoAlert').style.display='none';
-    const btn=$('btnFidoTap');
-    if(btn){ btn.classList.remove('loading'); btn.disabled=false;
-      btn.querySelector('.lbl').textContent='Step 1 — Request TAP'; }
-  }
-
-  // Base64url helpers for WebAuthn
-  const b64uToBuffer = s => {
-    const b64 = s.replace(/-/g,'+').replace(/_/g,'/') + '=='.slice(0,(4-s.length%4)%4);
-    return Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
-  };
-  const bufferToB64u = buf =>
-    btoa(String.fromCharCode(...new Uint8Array(buf)))
-      .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
-
-
-
-  /* ══════════════════════════════════════
-     Sign out
-  ══════════════════════════════════════ */
-  $('soBtn').addEventListener('click',()=>{
-    verifiedEmail='';currentFlow='';currentUser=null;
-    ['nuEmailIn','nuUsername','nuPassword','euPassword'].forEach(id=>$(id).value='');
-    $('wbBar').classList.remove('show');
-    resetTapUi(); resetFido();
-    // Reset cards to default — TAP visible, FIDO2 hidden
-    document.querySelector('.ac-tap').style.display='';
-    document.querySelector('.ac-fido').style.display='none';
-    $('actionGrid').style.gridTemplateColumns='1fr 1fr';
-    const eyebrow=$('actionEyebrow'); if(eyebrow) eyebrow.textContent='Complete Your Setup';
-    goHome();
-  });
-
-  /* ══════════════════════════════════════
-     Keyboard: Escape → home
-  ══════════════════════════════════════ */
-  document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'&&currentScreen!=='sHome') goHome();
-  });
-
-  /* ══════════════════════════════════════
-     Expose functions globally (fixes onclick scope issues)
-  ══════════════════════════════════════ */
-  window.startNewUser      = startNewUser;
-  window.startExistingUser = startExistingUser;
-  window.goHome            = goHome;
-  window.gTab              = gTab;
-  window.cpyCode           = cpyCode;
-  window.generateTap       = generateTap;
-  window.copyTap           = copyTap;
-  window.generateFidoTap   = generateFidoTap;
-  window.copyFidoTap       = copyFidoTap;
-  window.resetFido         = resetFido;
-
-  /* ══════════════════════════════════════
-     Init — auto-initialise from hardcoded config
-  ══════════════════════════════════════ */
-  supa = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
-  initMsal(CONFIG.msalTenant, CONFIG.msalClient).catch(e => console.error('MSAL init:', e));
-  $('configPanels').style.display = 'none';
-  goScreen('sHome');
-  </script>
+</script>
 </body>
 </html>
