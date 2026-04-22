@@ -1,70 +1,67 @@
 // ================================================================
-// SecureAuth — Cloudflare Worker (v2)
+// SecureAuth — Cloudflare Worker (v4)
 //
-// Routes (all POST, differentiated by "action" field in JSON body):
-//   action: "check-email"      → verify email exists in Entra ID
-//   action: "writeback-email"  → write personalEmail to Entra otherMails
-//   action: "generate-token"   → sign and return a JWT with user claims
+// Routes (all POST, differentiated by body.action):
+//   check-email       → verify UPN exists in Entra ID
+//   writeback-email   → write personalEmail to Entra otherMails
+//   generate-token    → sign HS256 JWT with user claims
+//   generate-tap      → generate Temporary Access Pass via Graph
+//   fido2-begin       → start FIDO2 registration ceremony
+//   fido2-complete    → complete FIDO2 registration
+//   myid-auth-start   → build & return myID OIDC authorization URL (PKCE)
+//   myid-callback     → exchange code→tokens, validate IP level, store in Supabase
 //
-// ENVIRONMENT VARIABLES (Workers → Settings → Variables):
-//   ENTRA_TENANT_ID      → your Directory (tenant) ID
-//   ENTRA_CLIENT_ID      → your Application (client) ID
-//   ENTRA_CLIENT_SECRET  → your client secret VALUE          [mark Encrypted]
-//   ALLOWED_ORIGIN       → https://jerrya-byte.github.io
-//   JWT_SECRET           → any long random string            [mark Encrypted]
-//                          e.g. "s3cur3Auth!jwt$2025#secret"
+// ENVIRONMENT VARIABLES  (Workers → Settings → Variables & Secrets)
+// ─────────────────────────────────────────────────────────────────
+//   ENTRA_TENANT_ID       Directory (tenant) ID
+//   ENTRA_CLIENT_ID       Application (client) ID
+//   ENTRA_CLIENT_SECRET   Client secret [Encrypted]
+//   ALLOWED_ORIGIN        https://jerrya-byte.github.io
+//   JWT_SECRET            Any long random string [Encrypted]
+//   SUPABASE_URL          https://itgpqimnshhllehrvjyt.supabase.co
+//   SUPABASE_KEY          Supabase anon key [Encrypted]
 //
-// NEW ENTRA PERMISSION NEEDED (for writeback-email):
-//   portal.azure.com → Entra ID → App registrations → your app
-//   → API permissions → + Add → Microsoft Graph
-//   → Application permissions → User.ReadWrite.All
-//   → Grant admin consent ✓
+//   ── myID (update these once DTA provides credentials) ─────────
+//   MYID_ENVIRONMENT      'staging' or 'production'
+//   MYID_CLIENT_ID        DTA-issued client ID          [PLACEHOLDER]
+//   MYID_CLIENT_SECRET    DTA-issued client secret      [PLACEHOLDER][Encrypted]
+//   MYID_REDIRECT_URI     https://jerrya-byte.github.io/secure-auth-spa/
 // ================================================================
 
-export default {
-  async fetch(request, env) {
-
-    // ── CORS ──────────────────────────────────────────────────
-    const allowedOrigin = env.ALLOWED_ORIGIN || '*';
-    const cors = {
-      'Access-Control-Allow-Origin':  allowedOrigin,
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    };
-
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: cors });
-    }
-    if (request.method !== 'POST') {
-      return respond({ error: 'Method not allowed' }, 405, cors);
-    }
-
-    let body;
-    try { body = await request.json(); }
-    catch { return respond({ error: 'Invalid JSON body' }, 400, cors); }
-
-    try {
-      switch (body.action) {
-        case 'check-email':
-          return respond(await checkEmail(body, env), 200, cors);
-        case 'writeback-email':
-          return respond(await writebackEmail(body, env), 200, cors);
-        case 'generate-token':
-          return respond(await generateToken(body, env), 200, cors);
-        default:
-          return respond({ error: `Unknown action: "${body.action}"` }, 400, cors);
-      }
-    } catch (err) {
-      return respond({ error: err.message || 'Internal Worker error' }, 500, cors);
-    }
-  }
+// ── myID OIDC endpoint configuration ─────────────────────────
+// NOTE: Confirm exact endpoint URLs with DTA during onboarding.
+// These follow the documented auth.identity.gov.au URL pattern.
+// DTA provides a /.well-known/openid-configuration discovery doc
+// at the issuer URL once your app is onboarded.
+const MYID_ENDPOINTS = {
+  staging: {
+    issuer:                'https://auth.stest.identity.gov.au',                   // ← confirm with DTA
+    authorizationEndpoint: 'https://auth.stest.identity.gov.au/oauth2/authorize',  // ← confirm with DTA
+    tokenEndpoint:         'https://auth.stest.identity.gov.au/oauth2/token',      // ← confirm with DTA
+  },
+  production: {
+    issuer:                'https://auth.identity.gov.au',
+    authorizationEndpoint: 'https://auth.identity.gov.au/oauth2/authorize',        // ← confirm with DTA
+    tokenEndpoint:         'https://auth.identity.gov.au/oauth2/token',            // ← confirm with DTA
+  },
 };
 
+// TDIF Identity Proofing minimum requirement
+// IP2 = Standard: requires photo ID (passport/licence) + Medicare or equivalent
+// TDIF ACR value: 'urn:id.gov.au:tdif:acr:ip2:cl2'
+// IP3 = Strong: same docs as IP2 + biometric selfie matched against passport photo
+const REQUIRED_IP_LEVEL = 2;
+
 // ── Helpers ───────────────────────────────────────────────────
-function respond(data, status, cors) {
-  return new Response(JSON.stringify(data), {
-    status, headers: { ...cors, 'Content-Type': 'application/json' }
-  });
+
+function corsHeaders(origin, env) {
+  const allowed = env.ALLOWED_ORIGIN || 'https://jerrya-byte.github.io';
+  const o = (origin && origin.startsWith(allowed)) ? origin : allowed;
+  return {
+    'Access-Control-Allow-Origin': o,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
 }
 
 async function getEntraToken(env) {
@@ -81,85 +78,404 @@ async function getEntraToken(env) {
       }),
     }
   );
-  const d = await res.json();
-  if (!res.ok) throw new Error(d.error_description || d.error || 'Failed to get Entra access token');
-  return d.access_token;
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description || 'Failed to acquire Entra token');
+  return data.access_token;
 }
 
-// ── ACTION: check-email ───────────────────────────────────────
-async function checkEmail({ email }, env) {
-  if (!email?.includes('@')) throw new Error('Invalid email address');
-  const token = await getEntraToken(env);
-  const res = await fetch(
-    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}?$select=id,displayName,userPrincipalName`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (res.status === 404) return { found: false };
-  if (res.status === 403) throw new Error('Graph API: Forbidden. Ensure User.ReadBasic.All is granted with admin consent.');
-  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e?.error?.message || `Graph API error (HTTP ${res.status})`); }
-  const u = await res.json();
-  return { found: true, displayName: u.displayName || null };
-}
-
-// ── ACTION: writeback-email ───────────────────────────────────
-// Requires User.ReadWrite.All application permission in Entra
-async function writebackEmail({ entraEmail, personalEmail }, env) {
-  if (!entraEmail || !personalEmail) throw new Error('entraEmail and personalEmail are required');
-  const token = await getEntraToken(env);
-  const res = await fetch(
-    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(entraEmail)}`,
-    {
-      method:  'PATCH',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ otherMails: [personalEmail] }),
-    }
-  );
-  if (res.status === 204 || res.status === 200) return { success: true };
-  if (res.status === 403) throw new Error('Writeback forbidden. Ensure User.ReadWrite.All application permission is granted with admin consent.');
-  const e = await res.json().catch(()=>({}));
-  throw new Error(e?.error?.message || `Writeback error (HTTP ${res.status})`);
-}
-
-// ── ACTION: generate-token ────────────────────────────────────
-async function generateToken({ user }, env) {
-  if (!user)           throw new Error('user payload is required');
-  if (!env.JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set in Worker');
-
-  const now = Math.floor(Date.now() / 1000);
-  const payload = {
-    iss:               'secureauth-worker',
-    aud:               'secureauth-spa',
-    sub:               user.username,
-    iat:               now,
-    exp:               now + 3600,
-    auth_result:       'SUCCESS',
-    first_name:        user.firstName,
-    last_name:         user.lastName,
-    identity_strength: user.identityStrength,
-    personal_email:    user.personalEmail,
-    entra_email:       user.entraEmail,
+async function callGraph(token, path, method = 'GET', body = null, beta = false) {
+  const base = beta
+    ? 'https://graph.microsoft.com/beta'
+    : 'https://graph.microsoft.com/v1.0';
+  const opts = {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
   };
-
-  return { token: await signHS256(payload, env.JWT_SECRET) };
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(`${base}${path}`, opts);
 }
 
-// ── JWT HS256 signing ─────────────────────────────────────────
-async function signHS256(payload, secret) {
-  const b64u = v =>
-    btoa(typeof v === 'string' ? v : JSON.stringify(v))
-      .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
-
-  const header  = b64u({ alg: 'HS256', typ: 'JWT' });
-  const body    = b64u(payload);
-  const signing = `${header}.${body}`;
-
+// HS256 JWT signing via Web Crypto (no imports needed in Workers)
+async function signJwt(payload, secret) {
+  const b64url = (obj) =>
+    btoa(JSON.stringify(obj))
+      .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const msg = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url(payload)}`;
   const key = await crypto.subtle.importKey(
     'raw', new TextEncoder().encode(secret),
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   );
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signing));
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(msg));
   const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
-    .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
-
-  return `${signing}.${sigB64}`;
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return `${msg}.${sigB64}`;
 }
+
+// Parse JWT payload without signature verification.
+// SAFE here because we only call this on tokens fetched DIRECTLY
+// from myID's token endpoint — never on user-supplied tokens.
+function parseJwt(token) {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('Invalid JWT: expected 3 parts');
+  let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+  while (payload.length % 4) payload += '=';
+  return JSON.parse(atob(payload));
+}
+
+// Extract numeric IP level from TDIF ACR claim string
+// 'urn:id.gov.au:tdif:acr:ip2:cl2' → 2
+// 'urn:id.gov.au:tdif:acr:ip3:cl2' → 3
+function extractIpLevel(acr) {
+  if (!acr) return 0;
+  const m = acr.match(/ip(\d+)/i);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+// ── Main fetch handler ────────────────────────────────────────
+
+export default {
+  async fetch(request, env) {
+    const origin = request.headers.get('Origin') || '';
+    const cors = corsHeaders(origin, env);
+
+    // Preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: cors });
+    }
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body' }),
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const respond = (data, status = 200) =>
+      new Response(JSON.stringify(data), {
+        status,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      });
+
+    try {
+
+      // ════════════════════════════════════════════════════════
+      // check-email — verify Entra UPN exists
+      // ════════════════════════════════════════════════════════
+      if (body.action === 'check-email') {
+        const token = await getEntraToken(env);
+        const email = (body.email || '').toLowerCase().trim();
+        const res = await callGraph(
+          token,
+          `/users?$filter=userPrincipalName eq '${email}'` +
+          `&$select=id,displayName,userPrincipalName`
+        );
+        const data = await res.json();
+        if (!res.ok) return respond({ error: data.error?.message || 'Graph API error' }, 400);
+        const user = data.value?.[0];
+        if (!user) return respond({ exists: false });
+        return respond({ exists: true, userId: user.id, displayName: user.displayName });
+      }
+
+      // ════════════════════════════════════════════════════════
+      // writeback-email — write personal email to Entra otherMails
+      // ════════════════════════════════════════════════════════
+      if (body.action === 'writeback-email') {
+        const token = await getEntraToken(env);
+        const res = await callGraph(token, `/users/${body.userId}`, 'PATCH', {
+          otherMails: [body.personalEmail],
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return respond({ error: err.error?.message || 'Writeback failed' }, 400);
+        }
+        return respond({ success: true });
+      }
+
+      // ════════════════════════════════════════════════════════
+      // generate-token — sign HS256 JWT
+      // ════════════════════════════════════════════════════════
+      if (body.action === 'generate-token') {
+        const now = Math.floor(Date.now() / 1000);
+        const payload = {
+          sub:   body.userId,
+          email: body.email,
+          name:  body.displayName,
+          iat:   now,
+          exp:   now + 3600,
+          iss:   'secureauth-portal',
+        };
+        const token = await signJwt(payload, env.JWT_SECRET);
+        return respond({ token });
+      }
+
+      // ════════════════════════════════════════════════════════
+      // generate-tap — Temporary Access Pass via Graph
+      // ════════════════════════════════════════════════════════
+      if (body.action === 'generate-tap') {
+        const token = await getEntraToken(env);
+        const res = await callGraph(
+          token,
+          `/users/${body.userId}/authentication/temporaryAccessPassMethods`,
+          'POST',
+          { isUsableOnce: true, lifetimeInMinutes: 60 }
+        );
+        const data = await res.json();
+        if (!res.ok) return respond({ error: data.error?.message || 'TAP generation failed' }, 400);
+        return respond({
+          tap:       data.temporaryAccessPass,
+          expiresAt: data.startDateTime,
+        });
+      }
+
+      // ════════════════════════════════════════════════════════
+      // fido2-begin — start FIDO2 registration (Graph beta)
+      // ════════════════════════════════════════════════════════
+      if (body.action === 'fido2-begin') {
+        const token = await getEntraToken(env);
+        const res = await callGraph(
+          token,
+          `/users/${body.userId}/authentication/fido2Methods/creationOptions`,
+          'GET', null, true
+        );
+        const data = await res.json();
+        if (!res.ok) return respond({ error: data.error?.message || 'FIDO2 begin failed' }, 400);
+        // Graph beta returns options under 'publicKey' (not 'publicKeyCredentialCreationOptions')
+        const options = data.publicKey || data.publicKeyCredentialCreationOptions || data;
+        return respond({ options });
+      }
+
+      // ════════════════════════════════════════════════════════
+      // fido2-complete — finish FIDO2 registration (Graph beta)
+      // ════════════════════════════════════════════════════════
+      if (body.action === 'fido2-complete') {
+        const token = await getEntraToken(env);
+        const displayName = (body.displayName || 'Security Key').substring(0, 30);
+        const res = await callGraph(
+          token,
+          `/users/${body.userId}/authentication/fido2Methods`,
+          'POST',
+          {
+            displayName,
+            publicKeyCredential: {
+              id: body.credentialId,
+              response: {
+                clientDataJSON:    body.clientDataJSON,
+                attestationObject: body.attestationObject,
+              },
+            },
+          },
+          true
+        );
+        const data = await res.json();
+        if (!res.ok) return respond({ error: data.error?.message || 'FIDO2 complete failed' }, 400);
+        return respond({ success: true, methodId: data.id });
+      }
+
+      // ════════════════════════════════════════════════════════
+      // myid-auth-start
+      // Builds and returns the myID OIDC authorization URL.
+      // The SPA redirects the user's browser to this URL.
+      //
+      // Request body:
+      //   code_challenge  string   PKCE S256 code challenge (generated by SPA)
+      //   state           string   Random state value (generated by SPA)
+      //   nonce           string   Random nonce value (generated by SPA)
+      //
+      // Response:
+      //   authorizationUrl  string   Full myID authorization URL
+      //   environment       string   'staging' or 'production'
+      // ════════════════════════════════════════════════════════
+      if (body.action === 'myid-auth-start') {
+        const environment = (env.MYID_ENVIRONMENT || 'staging').toLowerCase();
+        const config = MYID_ENDPOINTS[environment] || MYID_ENDPOINTS.staging;
+
+        // Guard: fail clearly if DTA credentials haven't been configured yet
+        if (!env.MYID_CLIENT_ID || env.MYID_CLIENT_ID.startsWith('PLACEHOLDER')) {
+          return respond({
+            error: 'myID is not yet configured. ' +
+              'Update MYID_CLIENT_ID, MYID_CLIENT_SECRET, and MYID_REDIRECT_URI ' +
+              'in Cloudflare Worker secrets after completing DTA onboarding.',
+            configRequired: true,
+          }, 503);
+        }
+
+        const params = new URLSearchParams({
+          response_type:         'code',
+          client_id:             env.MYID_CLIENT_ID,
+          redirect_uri:          env.MYID_REDIRECT_URI || 'https://jerrya-byte.github.io/secure-auth-spa/',
+          scope:                 'openid profile email',
+          state:                 body.state,
+          nonce:                 body.nonce,
+          code_challenge:        body.code_challenge,
+          code_challenge_method: 'S256',
+          // Request minimum IP2 (Standard) identity strength
+          // TDIF ACR: urn:id.gov.au:tdif:acr:ip2:cl2  ← confirm exact value with DTA
+          acr_values: 'urn:id.gov.au:tdif:acr:ip2:cl2',
+        });
+
+        return respond({
+          authorizationUrl: `${config.authorizationEndpoint}?${params.toString()}`,
+          environment,
+        });
+      }
+
+      // ════════════════════════════════════════════════════════
+      // myid-callback
+      // Exchanges the OIDC authorization code for tokens,
+      // validates identity proofing level, and stores claims
+      // in the Supabase myid_identity_claims table.
+      //
+      // Request body:
+      //   code          string   Authorization code from myID redirect
+      //   state         string   State value to validate
+      //   nonce         string   Nonce from auth-start (for replay prevention)
+      //   code_verifier string   PKCE verifier (generated by SPA before redirect)
+      //   entra_email   string   Entra UPN verified in the previous step
+      //
+      // Response (success):
+      //   success       true
+      //   ipLevel       number   e.g. 2 for IP2
+      //   acr           string   Full ACR claim value
+      //   givenName     string
+      //   familyName    string
+      //   email         string   myID-verified email (may differ from Entra email)
+      //
+      // Response (insufficient strength):
+      //   success       false
+      //   reason        'insufficient_strength'
+      //   ipLevel       number
+      //   acr           string
+      //   requiredLevel number   (2)
+      //   message       string   Human-readable explanation
+      // ════════════════════════════════════════════════════════
+      if (body.action === 'myid-callback') {
+        const environment = (env.MYID_ENVIRONMENT || 'staging').toLowerCase();
+        const config = MYID_ENDPOINTS[environment] || MYID_ENDPOINTS.staging;
+
+        // ── Step 1: Exchange authorization code for tokens ────
+        const tokenRes = await fetch(config.tokenEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type:    'authorization_code',
+            code:          body.code,
+            redirect_uri:  env.MYID_REDIRECT_URI || 'https://jerrya-byte.github.io/secure-auth-spa/',
+            client_id:     env.MYID_CLIENT_ID,
+            client_secret: env.MYID_CLIENT_SECRET,
+            code_verifier: body.code_verifier,
+          }),
+        });
+
+        if (!tokenRes.ok) {
+          const err = await tokenRes.json().catch(() => ({}));
+          console.error('myID token exchange error:', JSON.stringify(err));
+          return respond({
+            error: err.error_description || err.error || 'Token exchange with myID failed',
+          }, 400);
+        }
+
+        const tokens = await tokenRes.json();
+
+        if (!tokens.id_token) {
+          return respond({ error: 'myID did not return an ID token' }, 400);
+        }
+
+        // ── Step 2: Parse ID token claims ─────────────────────
+        let claims;
+        try {
+          claims = parseJwt(tokens.id_token);
+        } catch (e) {
+          return respond({ error: 'Failed to parse myID ID token: ' + e.message }, 400);
+        }
+
+        console.log('myID token claims:', JSON.stringify(claims));
+
+        // ── Step 3: Validate nonce (replay attack prevention) ─
+        if (claims.nonce !== body.nonce) {
+          console.error('Nonce mismatch. Expected:', body.nonce, 'Got:', claims.nonce);
+          return respond({ error: 'Nonce mismatch — possible replay attack. Please try again.' }, 400);
+        }
+
+        // ── Step 4: Check identity proofing level ─────────────
+        // TDIF ACR values:
+        //   urn:id.gov.au:tdif:acr:ip1:cl1  →  IP1 (Basic)
+        //   urn:id.gov.au:tdif:acr:ip2:cl2  →  IP2 (Standard) ← minimum required
+        //   urn:id.gov.au:tdif:acr:ip3:cl2  →  IP3 (Strong)
+        const acr = claims.acr || '';
+        const ipLevel = extractIpLevel(acr);
+
+        if (ipLevel < REQUIRED_IP_LEVEL) {
+          const levelName = ipLevel === 0 ? 'Unknown' : ipLevel === 1 ? 'Basic (IP1)' : `IP${ipLevel}`;
+          return respond({
+            success:       false,
+            reason:        'insufficient_strength',
+            ipLevel,
+            acr,
+            requiredLevel: REQUIRED_IP_LEVEL,
+            message: ipLevel === 0
+              ? 'Your myID identity strength could not be determined. ' +
+                'Please ensure your myID is set to Standard or Strong and try again.'
+              : `Your myID identity strength is ${levelName}, but Standard (IP2) or Strong (IP3) is required. ` +
+                'Please upgrade your myID identity strength and try again.',
+          });
+        }
+
+        // ── Step 5: Store all claims in Supabase ──────────────
+        const claimsRecord = {
+          entra_email:  body.entra_email || null,
+          sub:          claims.sub,
+          acr:          acr || null,
+          ip_level:     `IP${ipLevel}`,
+          given_name:   claims.given_name  || null,
+          family_name:  claims.family_name || null,
+          email:        claims.email       || null,
+          raw_claims:   claims,            // full JSONB blob
+          verified_at:  new Date().toISOString(),
+        };
+
+        const supaRes = await fetch(
+          `${env.SUPABASE_URL}/rest/v1/myid_identity_claims`,
+          {
+            method: 'POST',
+            headers: {
+              apikey:         env.SUPABASE_KEY,
+              Authorization:  `Bearer ${env.SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              Prefer:         'return=minimal',
+            },
+            body: JSON.stringify(claimsRecord),
+          }
+        );
+
+        if (!supaRes.ok) {
+          // Non-fatal — log but don't block the user
+          const supaErr = await supaRes.text();
+          console.error('Supabase insert failed (non-fatal):', supaErr);
+        }
+
+        // ── Step 6: Return success with verified identity info ─
+        return respond({
+          success:    true,
+          ipLevel,
+          acr,
+          givenName:  claims.given_name  || '',
+          familyName: claims.family_name || '',
+          email:      claims.email       || '',
+        });
+      }
+
+      // Unknown action
+      return respond({ error: `Unknown action: ${body.action}` }, 400);
+
+    } catch (err) {
+      console.error('Worker unhandled error:', err.message, err.stack);
+      return respond({ error: err.message || 'Internal server error' }, 500);
+    }
+  },
+};
