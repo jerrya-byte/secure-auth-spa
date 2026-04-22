@@ -576,20 +576,9 @@
         <div class="card">
           <div class="card-header">
             <h2>Existing User — Sign In</h2>
-            <p>Step 1 of 2: Authenticate with Microsoft</p>
+            <p>Step 1 of 2: Authenticate with your Microsoft work account</p>
           </div>
           <div class="card-body">
-            <div class="steps">
-              <div class="step active">
-                <div class="step-dot">1</div>
-                <span>Microsoft SSO</span>
-              </div>
-              <div class="step-line"></div>
-              <div class="step">
-                <div class="step-dot">2</div>
-                <span>Verify &amp; Set Up</span>
-              </div>
-            </div>
 
             <div class="alert alert-info">
               🔷 Click below to sign in with your Microsoft work account. A popup window will open — please allow popups if prompted.
@@ -608,52 +597,105 @@
       </div>
 
       <!-- ══════════════════════════════════════════════
-           SCREEN: EXISTING USER — Supabase Auth
+           SCREEN: EXISTING USER — FIDO2 Instructions
       ══════════════════════════════════════════════ -->
-      <div class="screen" id="sEuSupaAuth">
+      <div class="screen" id="sEuFido2">
         <div class="card">
           <div class="card-header">
-            <h2>Existing User — Verify Credentials</h2>
-            <p>Step 2 of 2: Confirm your portal credentials</p>
+            <h2>Register Your Passkey</h2>
+            <p>Your Microsoft account is verified — now set up your FIDO2 passkey</p>
           </div>
           <div class="card-body">
-            <div class="steps">
-              <div class="step done">
-                <div class="step-dot">✓</div>
-                <span>Microsoft SSO</span>
-              </div>
-              <div class="step-line"></div>
-              <div class="step active">
-                <div class="step-dot">2</div>
-                <span>Verify &amp; Set Up</span>
-              </div>
-            </div>
 
             <div class="id-confirmed">
-              <div class="checkmark">🔷</div>
+              <div class="checkmark">✅</div>
               <div>
                 <h4 id="euSSOName">Signed in via Microsoft</h4>
                 <p id="euSSOEmail"></p>
               </div>
             </div>
 
-            <div class="alert alert-err alert-hidden" id="euSupaErr"></div>
-
-            <div class="field">
-              <label for="euUsername">Username</label>
-              <input type="text" id="euUsername" placeholder="Your portal username" autocomplete="username" />
+            <div class="alert alert-info">
+              🛡️ You'll be redirected to Microsoft's Security Info page to register your FIDO2 passkey or security key. Follow the steps below before clicking the button.
             </div>
-            <div class="field">
-              <label for="euPassword">Password</label>
-              <input type="password" id="euPassword" placeholder="Your portal password" autocomplete="current-password" />
+
+            <div class="tap-section">
+              <h3>🧰 What You'll Need</h3>
+              <ul class="step-list">
+                <li>
+                  <div class="num">•</div>
+                  <div>A <strong>FIDO2 security key</strong> (e.g. YubiKey, Google Titan) <em>or</em> a device that supports <strong>passkeys</strong> (Windows Hello, Touch ID, Face ID)</div>
+                </li>
+                <li>
+                  <div class="num">•</div>
+                  <div>Your <strong>Microsoft work account</strong> — you're already signed in above</div>
+                </li>
+                <li>
+                  <div class="num">•</div>
+                  <div>A few minutes in a <strong>private, secure location</strong> (don't register on a public computer)</div>
+                </li>
+              </ul>
+            </div>
+
+            <hr class="divider" />
+
+            <div class="tap-section">
+              <h3>📋 Step-by-Step Registration Instructions</h3>
+              <ol class="step-list">
+                <li>
+                  <div class="num">1</div>
+                  <div>Click <strong>"Go to Security Info"</strong> below. Microsoft's Security Info page will open in a new tab.</div>
+                </li>
+                <li>
+                  <div class="num">2</div>
+                  <div>If prompted to sign in again, use your work email (<strong id="euStepEmail" style="color:var(--brand)"></strong>) and your existing password or MFA method.</div>
+                </li>
+                <li>
+                  <div class="num">3</div>
+                  <div>On the Security Info page, click <strong>"Add sign-in method"</strong>.</div>
+                </li>
+                <li>
+                  <div class="num">4</div>
+                  <div>From the dropdown, select <strong>"Passkey (FIDO2)"</strong> and click <strong>"Add"</strong>.</div>
+                </li>
+                <li>
+                  <div class="num">5</div>
+                  <div><strong>Hardware security key:</strong> Insert into a USB port (or hold near your device for NFC), then touch the gold disc or button on the key when prompted.</div>
+                </li>
+                <li>
+                  <div class="num">6</div>
+                  <div><strong>Device passkey</strong> (Windows Hello / Touch ID / Face ID): Follow the on-screen biometric or PIN prompt on your device.</div>
+                </li>
+                <li>
+                  <div class="num">7</div>
+                  <div>Give your passkey a recognisable name (e.g. <em>"YubiKey 5 – Work"</em>, <em>"MacBook Touch ID"</em>) and click <strong>"Done"</strong>.</div>
+                </li>
+                <li>
+                  <div class="num">8</div>
+                  <div>Your passkey is now registered ✅ — you can close that tab and return here. From now on you can sign in to any Microsoft service without a password.</div>
+                </li>
+              </ol>
+            </div>
+
+            <hr class="divider" />
+
+            <div class="alert alert-warn">
+              ⚠️ <strong>Tip:</strong> If you see "You can't add this sign-in method", your IT administrator may need to enable FIDO2 in the Entra tenant policy first.
             </div>
 
             <div class="btn-group">
-              <button class="btn btn-primary" id="euSupaBtn" onclick="doSupaAuth()">
-                Verify &amp; Continue →
-              </button>
-              <button class="btn btn-secondary" onclick="showScreen('sEuSSO')">← Back</button>
+              <a href="https://mysignins.microsoft.com/security-info"
+                 target="_blank" rel="noopener"
+                 class="btn btn-primary">
+                🔐 Go to Security Info →
+              </a>
+              <button class="btn btn-secondary" onclick="showScreen('sHome')">← Home</button>
             </div>
+
+            <p class="text-muted mt-4" style="font-size:.75rem;">
+              You'll be directed to <strong>mysignins.microsoft.com</strong> — Microsoft's official account security portal.
+            </p>
+
           </div>
         </div>
       </div>
@@ -1024,87 +1066,15 @@
       document.getElementById('euSSOName').textContent =
         result.account.name || 'Microsoft account';
       document.getElementById('euSSOEmail').textContent = verifiedEmail;
+      document.getElementById('euStepEmail').textContent = verifiedEmail;
 
-      showScreen('sEuSupaAuth');
+      showScreen('sEuFido2');
 
     } catch (e) {
       showAlert(err, e.message || 'Microsoft sign-in failed. Ensure popups are allowed.');
     } finally {
       btn.disabled = false;
       btn.textContent = '🔷 Sign in with Microsoft';
-    }
-  }
-
-  // ════════════════════════════════════════════════════════════
-  // EXISTING USER FLOW — Supabase credential auth (unchanged)
-  // ════════════════════════════════════════════════════════════
-
-  async function doSupaAuth() {
-    const btn  = document.getElementById('euSupaBtn');
-    const err  = document.getElementById('euSupaErr');
-    const user = document.getElementById('euUsername').value.trim();
-    const pass = document.getElementById('euPassword').value;
-    err.classList.add('alert-hidden');
-
-    if (!user || !pass) {
-      showAlert(err, 'Please enter both username and password.');
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'Verifying…';
-
-    try {
-      const res = await fetch(
-        `${CONFIG.supabaseUrl}/rest/v1/user_credentials?username=eq.${encodeURIComponent(user)}&select=username,password_hash`,
-        {
-          headers: {
-            apikey:        CONFIG.supabaseKey,
-            Authorization: `Bearer ${CONFIG.supabaseKey}`,
-          },
-        }
-      );
-      const data = await res.json();
-
-      if (!res.ok || !data.length) {
-        showAlert(err, 'Invalid username or password.');
-        btn.disabled = false;
-        btn.textContent = 'Verify & Continue →';
-        return;
-      }
-
-      // Simple hash check (existing pattern)
-      const row = data[0];
-      const hashRes = await fetch(CONFIG.workerUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'verify-password', plaintext: pass, hash: row.password_hash }),
-      });
-      const hashData = await hashRes.json();
-
-      if (!hashData.valid) {
-        showAlert(err, 'Invalid username or password.');
-        btn.disabled = false;
-        btn.textContent = 'Verify & Continue →';
-        return;
-      }
-
-      // Show TAP screen with EU step indicator
-      document.getElementById('tapSteps').innerHTML = `
-        <div class="step done"><div class="step-dot">✓</div><span>Microsoft SSO</span></div>
-        <div class="step-line"></div>
-        <div class="step active"><div class="step-dot">2</div><span>Set Up Passkey</span></div>
-      `;
-      document.getElementById('tapSubtitle').textContent = 'Step 2 of 2: Generate a TAP and register your passkey';
-      document.getElementById('tapIdentityBanner').style.display = 'none';
-
-      showScreen('sTap');
-
-    } catch (e) {
-      showAlert(err, e.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Verify & Continue →';
     }
   }
 
