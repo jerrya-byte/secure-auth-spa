@@ -1,9 +1,11 @@
 // ================================================================
-// SecureAuth — Cloudflare Worker (v4)
+// SecureAuth — Cloudflare Worker (v5)
 //
 // Routes (all POST, differentiated by body.action):
-//   check-email       → verify UPN exists in Entra ID
-//   writeback-email   → write personalEmail to Entra otherMails
+//   check-reference   → look up reference# in Supabase identity_records
+//                       and resolve the matching Entra user (replaces
+//                       check-email in the New User flow)
+//   check-email       → verify UPN exists in Entra ID (legacy / unused)
 //   generate-token    → sign HS256 JWT with user claims
 //   generate-tap      → generate Temporary Access Pass via Graph
 //   fido2-begin       → start FIDO2 registration ceremony
@@ -183,18 +185,100 @@ export default {
       }
 
       // ════════════════════════════════════════════════════════
-      // writeback-email — write personal email to Entra otherMails
+      // check-reference
+      // Looks up an onboarding reference# in the Supabase
+      // identity_records table. If found, also resolves the
+      // matching Entra user (so subsequent steps — myID + TAP —
+      // have a userId to work with).
+      //
+      // Request body:
+      //   reference   string   onboarding reference (e.g. OB-2026-12345)
+      //
+      // Response (found):
+      //   exists      true
+      //   reference   string
+      //   email       string   email from identity_records
+      //   userId      string   Entra user object ID (may be empty)
+      //   givenName   string
+      //   familyName  string
+      //   displayName string   Entra displayName when available
+      //
+      // Response (not found):
+      //   exists      false
       // ════════════════════════════════════════════════════════
-      if (body.action === 'writeback-email') {
-        const token = await getEntraToken(env);
-        const res = await callGraph(token, `/users/${body.userId}`, 'PATCH', {
-          otherMails: [body.personalEmail],
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          return respond({ error: err.error?.message || 'Writeback failed' }, 400);
+      if (body.action === 'check-reference') {
+        const reference = (body.reference || '').trim();
+        if (!reference) {
+          return respond({ error: 'Reference number is required.' }, 400);
         }
-        return respond({ success: true });
+
+        // ── Step 1: Query Supabase identity_records by reference ──
+        const supaUrl =
+          `${env.SUPABASE_URL}/rest/v1/identity_records` +
+          `?reference=eq.${encodeURIComponent(reference)}` +
+          `&select=reference,given_name,family_name,email` +
+          `&limit=1`;
+
+        const supaRes = await fetch(supaUrl, {
+          headers: {
+            apikey:        env.SUPABASE_KEY,
+            Authorization: `Bearer ${env.SUPABASE_KEY}`,
+          },
+        });
+
+        if (!supaRes.ok) {
+          const errText = await supaRes.text().catch(() => '');
+          return respond({
+            error: `Supabase lookup failed: ${errText || supaRes.status}`,
+          }, 502);
+        }
+
+        const rows = await supaRes.json().catch(() => []);
+        const record = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+
+        if (!record) {
+          return respond({ exists: false });
+        }
+
+        // ── Step 2: Resolve matching Entra user (best-effort) ─────
+        // We look up the Entra user by mail/UPN so the later TAP
+        // generation step has the userId. If the user can't be
+        // resolved we still return exists:true so the SPA can
+        // proceed; downstream errors (e.g. TAP) will be surfaced
+        // to the user at that point.
+        let entraUserId   = '';
+        let entraDisplay  = '';
+        const recordEmail = (record.email || '').toLowerCase().trim();
+
+        if (recordEmail) {
+          try {
+            const token = await getEntraToken(env);
+            const filter = `userPrincipalName eq '${recordEmail}' or mail eq '${recordEmail}'`;
+            const lookup = await callGraph(
+              token,
+              `/users?$filter=${encodeURIComponent(filter)}` +
+              `&$select=id,displayName,userPrincipalName,mail`
+            );
+            const data = await lookup.json().catch(() => ({}));
+            const user = data.value?.[0];
+            if (user) {
+              entraUserId  = user.id || '';
+              entraDisplay = user.displayName || '';
+            }
+          } catch (e) {
+            console.error('Entra lookup for reference failed (non-fatal):', e.message);
+          }
+        }
+
+        return respond({
+          exists:      true,
+          reference:   record.reference,
+          email:       record.email || '',
+          userId:      entraUserId,
+          givenName:   record.given_name  || '',
+          familyName:  record.family_name || '',
+          displayName: entraDisplay,
+        });
       }
 
       // ════════════════════════════════════════════════════════
