@@ -239,8 +239,8 @@
           <div class="pathway-card" onclick="startFlow('nu')">
             <div class="icon">🆕</div>
             <h3>New User</h3>
-            <p>First-time setup. Verify your Entra account, prove your identity with myID, and register a passkey.</p>
-            <span class="tag">Entra Email → myID → Passkey</span>
+            <p>First-time setup. Enter your onboarding reference#, prove your identity with myID, and register a passkey.</p>
+            <span class="tag">Reference# → myID → Passkey</span>
           </div>
           <div class="pathway-card" onclick="startFlow('eu')">
             <div class="icon">🔁</div>
@@ -252,19 +252,19 @@
       </div>
 
       <!-- ══════════════════════════════════════════════
-           SCREEN: NEW USER — Step 1: Entra Email Check
+           SCREEN: NEW USER — Step 1: Onboarding Reference# Check
       ══════════════════════════════════════════════ -->
       <div class="screen" id="sNuEmail">
         <div class="card">
           <div class="card-header">
             <h2>New User — Identity Verification</h2>
-            <p>Step 1 of 3: Confirm your work account</p>
+            <p>Step 1 of 3: Confirm your onboarding reference</p>
           </div>
           <div class="card-body">
             <div class="steps">
               <div class="step active">
                 <div class="step-dot">1</div>
-                <span>Email Check</span>
+                <span>Reference# Check</span>
               </div>
               <div class="step-line"></div>
               <div class="step">
@@ -279,19 +279,19 @@
             </div>
 
             <div class="alert alert-info">
-              ℹ️ Enter your organisation email address (your Entra UPN). This confirms you have an account in the directory before we proceed to identity verification.
+              ℹ️ Enter the reference number that was sent to you in your onboarding email. This confirms you've been onboarded into our system before we proceed to identity verification.
             </div>
 
             <div class="alert alert-err alert-hidden" id="nuEmailErr"></div>
 
             <div class="field">
-              <label for="nuEmail">Work Email Address (Entra UPN)</label>
-              <input type="email" id="nuEmail" placeholder="firstname.lastname@organisation.gov.au" autocomplete="email" />
+              <label for="nuReference">Onboarding Reference Number</label>
+              <input type="text" id="nuReference" placeholder="e.g. OB-2026-12345" autocomplete="off" />
             </div>
 
             <div class="btn-group">
-              <button class="btn btn-primary" id="nuEmailBtn" onclick="checkEntraEmail()">
-                Check Account →
+              <button class="btn btn-primary" id="nuEmailBtn" onclick="checkReference()">
+                Verify Reference →
               </button>
               <button class="btn btn-secondary" onclick="showScreen('sHome')">← Back</button>
             </div>
@@ -312,7 +312,7 @@
             <div class="steps">
               <div class="step done">
                 <div class="step-dot">✓</div>
-                <span>Email Check</span>
+                <span>Reference# Check</span>
               </div>
               <div class="step-line"></div>
               <div class="step active">
@@ -329,8 +329,8 @@
             <div class="id-confirmed">
               <div class="checkmark">✅</div>
               <div>
-                <h4>Account found</h4>
-                <p id="nuConfirmedEmail">Your Entra account has been located.</p>
+                <h4>Reference confirmed</h4>
+                <p id="nuConfirmedEmail">Your onboarding reference has been validated.</p>
               </div>
             </div>
 
@@ -471,7 +471,7 @@
             <div class="steps" id="tapSteps">
               <div class="step done">
                 <div class="step-dot">✓</div>
-                <span>Email Check</span>
+                <span>Reference# Check</span>
               </div>
               <div class="step-line"></div>
               <div class="step done">
@@ -719,9 +719,10 @@
 
   // ── App state ─────────────────────────────────────────────
   let msalInstance  = null;
-  let verifiedEmail = '';   // confirmed Entra UPN
-  let verifiedUserId = '';  // Entra user object ID
-  let currentFlow   = '';   // 'nu' | 'eu'
+  let verifiedEmail = '';      // confirmed Entra UPN (from reference lookup)
+  let verifiedUserId = '';     // Entra user object ID
+  let verifiedReference = '';  // onboarding reference#
+  let currentFlow   = '';      // 'nu' | 'eu'
   let currentScreen = 'sHome';
 
   // ════════════════════════════════════════════════════════════
@@ -918,9 +919,9 @@
 
   // Called from the strength error screen "Try Again" button
   function retryMyId() {
-    // Re-show the myID redirect screen with the email still set
+    // Re-show the myID redirect screen with the reference still set
     document.getElementById('nuConfirmedEmail').textContent =
-      `Account confirmed: ${verifiedEmail}`;
+      `Reference confirmed: ${verifiedReference}${verifiedEmail ? ' · ' + verifiedEmail : ''}`;
     document.getElementById('nuMyIdErr').classList.add('alert-hidden');
     document.getElementById('nuMyIdBtn').disabled = false;
     document.getElementById('nuMyIdBtn').textContent = 'Continue with myID →';
@@ -928,38 +929,45 @@
   }
 
   // ════════════════════════════════════════════════════════════
-  // NEW USER FLOW — Step 1: Entra email check
+  // NEW USER FLOW — Step 1: Onboarding reference# check
+  // Looks up the reference in the Supabase identity_records table.
+  // If found, redirects to the myID step. If not, shows an error.
   // ════════════════════════════════════════════════════════════
 
-  async function checkEntraEmail() {
+  async function checkReference() {
     const btn = document.getElementById('nuEmailBtn');
     const err = document.getElementById('nuEmailErr');
-    const emailInput = document.getElementById('nuEmail');
+    const refInput = document.getElementById('nuReference');
     err.classList.add('alert-hidden');
 
-    const email = emailInput.value.trim().toLowerCase();
-    if (!email) { showAlert(err, 'Please enter your work email address.'); return; }
-    if (!email.includes('@')) { showAlert(err, 'Please enter a valid email address.'); return; }
+    const reference = refInput.value.trim();
+    if (!reference) {
+      showAlert(err, 'Please enter your onboarding reference number.');
+      return;
+    }
 
     btn.disabled = true;
-    btn.textContent = 'Checking…';
+    btn.textContent = 'Verifying…';
 
     try {
-      const res = await callWorker('check-email', { email });
+      const res = await callWorker('check-reference', { reference });
 
       if (!res.exists) {
-        showAlert(err, `No Entra account found for "${email}". Please check the email address or contact your administrator.`);
+        showAlert(err, 'Pls check the reference# or you are not yet onboarded into our system.');
         btn.disabled = false;
-        btn.textContent = 'Check Account →';
+        btn.textContent = 'Verify Reference →';
         return;
       }
 
-      // Account found — store and proceed to myID step
-      verifiedEmail  = email;
-      verifiedUserId = res.userId;
+      // Reference found — store and proceed to myID step
+      verifiedReference = reference;
+      verifiedEmail     = res.email   || '';
+      verifiedUserId    = res.userId  || '';
 
+      const namePart  = [res.givenName, res.familyName].filter(Boolean).join(' ');
+      const detailBit = namePart ? `${namePart} · ` : '';
       document.getElementById('nuConfirmedEmail').textContent =
-        `Account confirmed: ${res.displayName ? res.displayName + ' · ' : ''}${email}`;
+        `Reference confirmed: ${detailBit}${reference}`;
       document.getElementById('nuMyIdErr').classList.add('alert-hidden');
       document.getElementById('nuMyIdBtn').disabled = false;
       document.getElementById('nuMyIdBtn').textContent = 'Continue with myID →';
@@ -970,7 +978,7 @@
       showAlert(err, e.message);
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Check Account →';
+      btn.textContent = 'Verify Reference →';
     }
   }
 
@@ -1118,7 +1126,7 @@
   function startFlow(flow) {
     currentFlow = flow;
     if (flow === 'nu') {
-      document.getElementById('nuEmail').value = '';
+      document.getElementById('nuReference').value = '';
       document.getElementById('nuEmailErr').classList.add('alert-hidden');
       showScreen('sNuEmail');
     } else {
